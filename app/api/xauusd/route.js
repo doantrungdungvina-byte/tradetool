@@ -84,6 +84,32 @@ export async function GET(request) {
     const ma200 = sma(closes, 200);
     const changePct = previous?.close ? ((last.close / previous.close) - 1) * 100 : null;
 
+    // Rule-based technical summary for analysis only; it never places trades.
+    const rsi14 = rsi(closes);
+    const maTrend = (ma20 != null && ma50 != null)
+      ? (last.close > ma20 && ma20 > ma50 ? "Tăng" :
+         last.close < ma20 && ma20 < ma50 ? "Giảm" : "Trung tính")
+      : "Chưa đủ dữ liệu";
+    const rsiState = rsi14 == null ? "Chưa đủ dữ liệu" :
+      (rsi14 >= 70 ? "Quá mua" : rsi14 <= 30 ? "Quá bán" : "Trung tính");
+    const bullishCandle = last.close > last.open;
+    const bearishCandle = last.close < last.open;
+    let reversal = "Chưa xác nhận";
+    let reversalDetail = "Chưa có đủ điều kiện đồng thuận; chờ thêm nến xác nhận.";
+    if (rsi14 != null && rsi14 <= 30 && bullishCandle && previous && last.close > previous.close) {
+      reversal = "Có dấu hiệu đảo chiều tăng";
+      reversalDetail = "RSI ở vùng quá bán và nến gần nhất tăng; cần chờ xác nhận tiếp theo.";
+    } else if (rsi14 != null && rsi14 >= 70 && bearishCandle && previous && last.close < previous.close) {
+      reversal = "Có dấu hiệu đảo chiều giảm";
+      reversalDetail = "RSI ở vùng quá mua và nến gần nhất giảm; cần chờ xác nhận tiếp theo.";
+    } else if (maTrend === "Tăng" && rsi14 != null && rsi14 < 70) {
+      reversal = "Xu hướng tăng, chưa xác nhận đảo chiều";
+      reversalDetail = "Giá trên MA20 và MA20 trên MA50; chưa đủ điều kiện kết luận đảo chiều.";
+    } else if (maTrend === "Giảm" && rsi14 != null && rsi14 > 30) {
+      reversal = "Xu hướng giảm, chưa xác nhận đảo chiều";
+      reversalDetail = "Giá dưới MA20 và MA20 dưới MA50; chưa đủ điều kiện kết luận đảo chiều.";
+    }
+
     return NextResponse.json({
       symbol: "XAUUSD",
       providerSymbol: "XAU/USD",
@@ -91,7 +117,8 @@ export async function GET(request) {
       currency: "USD",
       price: round(last.close),
       changePct: round(changePct),
-      indicators: { rsi14: round(rsi(closes)), ma20: round(ma20), ma50: round(ma50), ma200: round(ma200) },
+      indicators: { rsi14: round(rsi14), ma20: round(ma20), ma50: round(ma50), ma200: round(ma200) },
+      analysis: { reversal, reversalDetail, rsiState, maTrend },
       history: rows.slice(-220).map((row) => ({ date: row.date, open: row.open, high: row.high, low: row.low, close: row.close })),
       source: "Twelve Data",
       updatedAt: last.date,

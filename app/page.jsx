@@ -276,10 +276,17 @@ export default function Home() {
             <>
               <div className="metrics">
                 <Metric label="Giá gần nhất" value={fmt(fxData.price)} sub={`${fxChange >= 0 ? "+" : ""}${fmt(fxChange)}% so với ${fxSymbol === "XAUUSD" ? "nến trước" : "phiên trước"}`} positive={fxChange >= 0} />
-                <Metric label="RSI (14)" value={fmt(fxData.indicators.rsi14)} />
+                <Metric label="RSI (14)" value={fmt(fxData.indicators.rsi14)} sub={fxData.analysis?.rsiState || (fxData.indicators.rsi14 <= 30 ? "Quá bán" : fxData.indicators.rsi14 >= 70 ? "Quá mua" : "Trung tính")} />
                 <Metric label="MA20" value={fmt(fxData.indicators.ma20)} />
                 <Metric label="MA50" value={fmt(fxData.indicators.ma50)} />
+                <Metric label="MA200" value={fmt(fxData.indicators.ma200)} />
               </div>
+              {fxSymbol === "XAUUSD" && fxData.analysis && (
+                <div className="metrics" style={{ marginTop: 12 }}>
+                  <Metric label="Phân tích Reversal" value={fxData.analysis.reversal} sub={fxData.analysis.reversalDetail} />
+                  <Metric label="Xu hướng MA20/MA50" value={fxData.analysis.maTrend} sub="So sánh giá với MA20 và MA20 với MA50" />
+                </div>
+              )}
               <PriceChart data={fxData.history} />
               <p className="muted">Nguồn: {fxData.source || "Yahoo Finance"}{fxSymbol === "XAUUSD" ? ` · Twelve Data XAU/USD · Khung ${({"5min":"M5","15min":"M15","30min":"M30","1h":"H1","4h":"H4","1day":"D1"})[xauInterval]}` : " · Dữ liệu có thể trễ tùy nhà cung cấp"}. Không tự đặt lệnh giao dịch.</p>
             </>
