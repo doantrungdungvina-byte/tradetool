@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 const funds = [
+  ["E1VFVN30","E1VFVN30 — ETF VN30"],["FUEVFVND","FUEVFVND — ETF Diamond"],["FUESSV50","FUESSV50 — ETF VNX50"],["FUESSVFL","FUESSVFL — ETF VNFinLead"],["FUEMAV30","FUEMAV30 — ETF VN30"],["FUEKIV30","FUEKIV30 — ETF VN30"],
   ["BVFED","BVFED"],["BMFF","BMFF"],["DCDS","DCDS — DC Dynamic Securities"],
   ["DCDE","DCDE"],["DFVN-CAF","DFVN-CAF"],["EVESG","EVESG"],["MAGEF","MAGEF"],
   ["MBVF","MBVF"],["PHVSF","PHVSF"],["SSISCA","SSISCA"],["TBLF","TBLF"],

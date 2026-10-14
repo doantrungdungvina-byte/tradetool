@@ -22,6 +22,12 @@ const FX_SYMBOLS = [
 ];
 
 const FUNDS = [
+  ["E1VFVN30", "E1VFVN30 — ETF VN30"],
+  ["FUEVFVND", "FUEVFVND — ETF Diamond"],
+  ["FUESSV50", "FUESSV50 — ETF VNX50"],
+  ["FUESSVFL", "FUESSVFL — ETF VNFinLead"],
+  ["FUEMAV30", "FUEMAV30 — ETF VN30"],
+  ["FUEKIV30", "FUEKIV30 — ETF VN30"],
   ["BVFED", "BVFED — Bảo Việt"],
   ["BMFF", "BMFF"],
   ["DCDS", "DCDS — DC Dynamic Securities"],
@@ -121,8 +127,7 @@ export default function Home() {
     setLoading(kind);
     setError("");
     try {
-      const endpoint = kind === "stock" ? `/api/vnstock?symbol=${encodeURIComponent(currentSymbol)}` : `/api/market?symbol=${encodeURIComponent(currentSymbol)}&kind=${kind}`;
-      const res = await fetch(endpoint, { cache: "no-store" });
+      const res = await fetch(`/api/market?symbol=${encodeURIComponent(currentSymbol)}&kind=${kind}`, { cache: "no-store" });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Không tải được dữ liệu thị trường.");
       if (kind === "forex") setFxData(json);
@@ -223,7 +228,6 @@ export default function Home() {
                 <Metric label="MA50" value={fmt(marketData.indicators.ma50)} />
               </div>
               <PriceChart data={marketData.history} />
-              <p className="muted">MA200: {fmt(marketData.indicators.ma200)} · MACD: {fmt(marketData.indicators.macd)} · ATR14: {fmt(marketData.indicators.atr14)} · Bollinger trên/dưới: {fmt(marketData.indicators.bollingerUpper)} / {fmt(marketData.indicators.bollingerLower)}</p>
               <h3>Kế hoạch mua thăm dò &amp; DCA (tham khảo)</h3>
               <div className="table-scroll"><table>
                 <thead><tr><th>Mức</th><th>Giá tham khảo</th><th>Thấp hơn giá hiện tại</th><th>Cơ sở</th></tr></thead>
@@ -235,7 +239,7 @@ export default function Home() {
                 <thead><tr><th>Lệnh</th><th>Mức</th><th>Vốn phân bổ</th><th>Khối lượng ước tính</th></tr></thead>
                 <tbody>{dcaRows.map((r) => <tr key={r.order}><td>{r.order}</td><td>{r.label}</td><td>{fmt(r.allocation, 0)} đ</td><td>{r.shares.toLocaleString("vi-VN")}</td></tr>)}</tbody>
               </table></div>
-              <p className="muted">Nguồn dữ liệu: Vnstock / {marketData.source || "không xác định"} · Phiên gần nhất: {marketData.asOf || "—"}. Dữ liệu có thể trễ hoặc bị giới hạn bởi nhà cung cấp.</p>
+              <p className="muted">Nguồn giá: Yahoo Finance. Dữ liệu có thể trễ, thiếu hoặc không hỗ trợ một số mã Việt Nam.</p>
             </>
           )}
         </section>
@@ -299,28 +303,38 @@ export default function Home() {
       {tab === "funds" && (
         <section className="panel">
           <h2>📈 Chứng chỉ quỹ</h2>
-          <p className="muted">Danh sách mã quỹ tích hợp sẵn; NAV cần được xác nhận từ nguồn dữ liệu. NAV quỹ mở không phải giá realtime.</p>
+          <p className="muted">Tra cứu theo mã quỹ. Hệ thống ưu tiên Fmarket và chỉ chấp nhận mã khớp chính xác; CafeF là nguồn dự phòng. NAV quỹ mở không phải giá realtime, còn giá ETF trên sàn có thể khác NAV/CCQ.</p>
           <div className="form-grid">
-            <label>Chọn chứng chỉ quỹ
-              <select value={fundSymbol} onChange={(e) => setFundSymbol(e.target.value)}>
-                {FUNDS.map(([code, name]) => <option key={code} value={code}>{name}</option>)}
-              </select>
+            <label>Mã chứng chỉ quỹ
+              <input list="fund-codes" value={fundSymbol} onChange={(e) => { setFundSymbol(e.target.value.toUpperCase().trim()); setFundData(null); }} placeholder="VESAF, E1VFVN30..." maxLength={15} />
+              <datalist id="fund-codes">{FUNDS.map(([code, name]) => <option key={code} value={code}>{name}</option>)}</datalist>
             </label>
-            <button className="primary action" disabled={loading === "fund"} onClick={loadFund}>
-              {loading === "fund" ? "Đang tải..." : "🔎 XEM NAV"}
+            <button className="primary action" disabled={loading === "fund" || !/^[A-Z0-9-]{2,15}$/.test(fundSymbol)} onClick={loadFund}>
+              {loading === "fund" ? "Đang tải..." : "🔎 TRA CỨU NAV"}
             </button>
           </div>
           {fundData && (
-            <div className="metrics">
-              <Metric label="NAV gần nhất" value={`${fmt(fundData.nav)} đ`} />
-              <Metric label="Tăng/giảm so với NAV trước" value={`${fundData.changeAbs >= 0 ? "+" : ""}${fmt(fundData.changeAbs)} đ`} positive={fundData.changeAbs >= 0} />
-              <Metric label="Biến động" value={`${fundData.changePct >= 0 ? "+" : ""}${fmt(fundData.changePct)}%`} positive={fundData.changePct >= 0} />
-              <Metric label="Ngày cập nhật" value={fundData.date || "—"} />
-            </div>
+            <>
+              <div className="metrics">
+                <Metric label="NAV gần nhất / CCQ" value={`${fmt(fundData.nav)} đ`} />
+                <Metric label="Tăng/giảm NAV" value={fundData.changeAbs == null ? "—" : `${fundData.changeAbs >= 0 ? "+" : ""}${fmt(fundData.changeAbs)} đ`} positive={fundData.changeAbs == null ? undefined : fundData.changeAbs >= 0} />
+                <Metric label="Biến động" value={fundData.changePct == null ? "—" : `${fundData.changePct >= 0 ? "+" : ""}${fmt(fundData.changePct)}%`} positive={fundData.changePct == null ? undefined : fundData.changePct >= 0} />
+                <Metric label="Ngày NAV" value={fundData.date || "Chưa xác định"} />
+              </div>
+              <p className="muted"><strong>Nguồn:</strong> {fundData.source} · {fundData.name || fundData.symbol}</p>
+              {fundData.history?.length > 1 && <><h3>Lịch sử NAV</h3><PriceChart data={fundData.history} /></>}
+              {Object.values(fundData.performance || {}).some((v) => v != null) && <>
+                <h3>Hiệu suất quỹ (nếu nguồn cung cấp)</h3>
+                <div className="metrics">
+                  {[["1 tháng", "oneMonth"], ["3 tháng", "threeMonths"], ["6 tháng", "sixMonths"], ["1 năm", "oneYear"], ["3 năm", "threeYears"]].filter(([, key]) => fundData.performance[key] != null).map(([label, key]) => <Metric key={key} label={label} value={`${fmt(fundData.performance[key])}%`} positive={fundData.performance[key] >= 0} />)}
+                </div>
+              </>}
+              <div className="alert info">{fundData.note || "Đối chiếu ngày NAV với công ty quản lý quỹ trước khi sử dụng."}</div>
+            </>
           )}
           <div className="link-row">
-            <a href="https://fmarket.vn/danh-sach-quy" target="_blank" rel="noreferrer">Mở danh sách quỹ trên Fmarket ↗</a>
-            <a href={`https://cafef.vn/du-lieu/chung-chi-quy/${fundSymbol.toLowerCase()}.chn`} target="_blank" rel="noreferrer">Mở trang {fundSymbol} trên CafeF ↗</a>
+            <a href="https://fmarket.vn/" target="_blank" rel="noreferrer">Đối chiếu NAV trên Fmarket ↗</a>
+            <a href={`https://cafef.vn/du-lieu/chung-chi-quy/${fundSymbol.toLowerCase()}.chn`} target="_blank" rel="noreferrer">Mở trang {fundSymbol || "quỹ"} trên CafeF ↗</a>
           </div>
         </section>
       )}
