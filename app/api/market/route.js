@@ -22,24 +22,89 @@ function average(values) {
 function sma(values, period) {
   return values.map((_, i) => i + 1 < period ? null : average(values.slice(i + 1 - period, i + 1)));
 }
-function rsi(values, period = 14) {
-  if (values.length <= period) return null;
+function rsiSeries(values, period = 14) {
+  const out = Array(values.length).fill(null);
+  if (values.length <= period) return out;
   let gains = 0, losses = 0;
   for (let i = 1; i <= period; i++) {
     const diff = values[i] - values[i - 1];
     if (diff >= 0) gains += diff; else losses -= diff;
   }
   let avgGain = gains / period, avgLoss = losses / period;
+  out[period] = avgLoss === 0 ? 100 : 100 - 100 / (1 + avgGain / avgLoss);
   for (let i = period + 1; i < values.length; i++) {
     const diff = values[i] - values[i - 1];
     avgGain = (avgGain * (period - 1) + Math.max(diff, 0)) / period;
     avgLoss = (avgLoss * (period - 1) + Math.max(-diff, 0)) / period;
+    out[i] = avgLoss === 0 ? 100 : 100 - 100 / (1 + avgGain / avgLoss);
   }
-  if (avgLoss === 0) return 100;
-  return 100 - 100 / (1 + avgGain / avgLoss);
+  return out;
 }
 function round(n) { return Number.isFinite(n) ? Number(n.toFixed(4)) : null; }
-
+function swingPoints(rows, field, start, end, radius = 2, type = 'low') {
+  const found = [];
+  for (let i = Math.max(radius, start); i < Math.min(end, rows.length - radius); i++) {
+    const value = rows[i][field];
+    const neighbors = rows.slice(i - radius, i + radius + 1).map(r => r[field]);
+    const extreme = type === 'low' ? Math.min(...neighbors) : Math.max(...neighbors);
+    if (value === extreme && neighbors.filter(v => v === value).length === 1) found.push({ index: i, value });
+  }
+  return found;
+}
+function detectDivergence(rows, rsiValues) {
+  const from = Math.max(0, rows.length - 45);
+  const lows = swingPoints(rows, 'low', from, rows.length, 2, 'low').filter(p => rsiValues[p.index] != null);
+  const highs = swingPoints(rows, 'high', from, rows.length, 2, 'high').filter(p => rsiValues[p.index] != null);
+  const a = lows.at(-2), b = lows.at(-1), c = highs.at(-2), d = highs.at(-1);
+  if (a && b && b.index - a.index >= 3 && b.value < a.value && rsiValues[b.index] > rsiValues[a.index]) {
+    return { type: 'bullish', label: 'Có dấu hiệu phân kỳ tăng', detail: 'Giá tạo đáy thấp hơn nhưng RSI tạo đáy cao hơn. Cần nến xác nhận; phân kỳ có thể kéo dài.' };
+  }
+  if (c && d && d.index - c.index >= 3 && d.value > c.value && rsiValues[d.index] < rsiValues[c.index]) {
+    return { type: 'bearish', label: 'Có dấu hiệu phân kỳ giảm', detail: 'Giá tạo đỉnh cao hơn nhưng RSI tạo đỉnh thấp hơn. Cần nến xác nhận; phân kỳ có thể kéo dài.' };
+  }
+  return { type: 'none', label: 'Chưa phát hiện phân kỳ rõ', detail: 'Thuật toán tìm swing trong khoảng 45 phiên gần nhất; không phát hiện không có nghĩa là không thể đảo chiều.' };
+}
+function reversalAnalysis(rows, rsiValues, volumeAvgValues) {
+  const i = rows.length - 1, last = rows[i], prev = rows[i - 1];
+  const range = Math.max(last.high - last.low, 0.0000001);
+  const body = Math.abs(last.close - last.open);
+  const lowerWick = Math.min(last.open, last.close) - last.low;
+  const upperWick = last.high - Math.max(last.open, last.close);
+  const rsiNow = rsiValues[i];
+  const volAvg = volumeAvgValues[i];
+  const rvol = volAvg > 0 ? last.volume / volAvg : null;
+  const nearLow = last.close <= Math.min(...rows.slice(-20).map(r => r.low)) * 1.025;
+  const nearHigh = last.close >= Math.max(...rows.slice(-20).map(r => r.high)) * 0.975;
+  const bullishCandle = last.close > last.open && last.close >= (last.low + range * 0.65);
+  const bearishCandle = last.close < last.open && last.close <= (last.low + range * 0.35);
+  const parts = {
+    candle: 0, rsi: 0, volume: 0, location: 0, confirmation: 0,
+  };
+  if (lowerWick / range >= 0.35 && lowerWick > body) parts.candle = 20;
+  else if (upperWick / range >= 0.35 && upperWick > body) parts.candle = 20;
+  if (rsiNow != null && rsiNow < 30) parts.rsi = 20;
+  else if (rsiNow != null && rsiNow < 40) parts.rsi = 12;
+  else if (rsiNow != null && rsiNow > 70) parts.rsi = 20;
+  else if (rsiNow != null && rsiNow > 60) parts.rsi = 12;
+  if (rvol != null && rvol >= 2) parts.volume = 20;
+  else if (rvol != null && rvol >= 1.5) parts.volume = 14;
+  else if (rvol != null && rvol >= 1.2) parts.volume = 8;
+  if (nearLow || nearHigh) parts.location = 20;
+  if (bullishCandle || bearishCandle) parts.confirmation = 20;
+  const score = Object.values(parts).reduce((a, b) => a + b, 0);
+  let signal = 'Chưa có tín hiệu rõ';
+  if (score >= 70 && bullishCandle && (nearLow || (rsiNow != null && rsiNow < 40))) signal = 'Có dấu hiệu đảo chiều tăng — chờ xác nhận';
+  else if (score >= 70 && bearishCandle && (nearHigh || (rsiNow != null && rsiNow > 60))) signal = 'Có dấu hiệu đảo chiều giảm — chờ xác nhận';
+  else if (score >= 50) signal = 'Có dấu hiệu cần theo dõi';
+  const notes = [];
+  if (lowerWick / range >= 0.35 && lowerWick > body) notes.push('Râu nến dưới dài: có thể xuất hiện lực mua đỡ giá.');
+  if (upperWick / range >= 0.35 && upperWick > body) notes.push('Râu nến trên dài: có thể xuất hiện áp lực bán tại vùng cao.');
+  if (nearLow) notes.push('Giá đóng cửa gần vùng đáy thấp nhất 20 phiên.');
+  if (nearHigh) notes.push('Giá đóng cửa gần vùng đỉnh cao nhất 20 phiên.');
+  if (rvol != null && rvol >= 1.5) notes.push(`Khối lượng cao hơn trung bình 20 phiên ${rvol.toFixed(2)} lần.`);
+  if (!notes.length) notes.push('Chưa có tổ hợp nến/động lượng/vị trí đủ nổi bật theo các ngưỡng hiện tại.');
+  return { score, signal, parts, candle: { bodyPct: round(body / range * 100), lowerWickPct: round(lowerWick / range * 100), upperWickPct: round(upperWick / range * 100), bullish: bullishCandle, bearish: bearishCandle }, nearLow, nearHigh, notes };
+}
 export async function GET(request) {
   const { searchParams } = new URL(request.url);
   const symbol = (searchParams.get("symbol") || "FPT").trim().toUpperCase();
@@ -101,14 +166,35 @@ export async function GET(request) {
       }
     }
     const prices = rows.map(r => r.close);
-    const currency = kind === "stock" ? "VND" : (symbol === "BTCUSD" ? "USD" : "USD");
+    const rsiValues = rsiSeries(prices, 14);
+    const volumeValues = rows.map(r => r.volume);
+    const volumeMA20 = sma(volumeValues, 20);
+    const rsiNow = rsiValues.at(-1);
+    const rsiPrev = rsiValues.at(-2);
+    const volAvg = volumeMA20.at(-1);
+    const rvol = volAvg > 0 ? last.volume / volAvg : null;
+    const divergence = detectDivergence(rows, rsiValues);
+    const reversal = reversalAnalysis(rows, rsiValues, volumeMA20);
+    const recentHistory = rows.slice(-220).map((r, idx, arr) => {
+      const absoluteIndex = rows.length - arr.length + idx;
+      return { date: r.date, open: r.open, high: r.high, low: r.low, close: r.close, volume: r.volume, rsi14: round(rsiValues[absoluteIndex]), volumeMA20: round(volumeMA20[absoluteIndex]) };
+    });
+    const currency = kind === "stock" ? "VND" : "USD";
     return NextResponse.json({
       symbol, yahooSymbol, currency,
       price: round(last.close),
       changePct: round((last.close / prev.close - 1) * 100),
-      indicators: { ma20: round(ma20), ma50: round(ma50), ma200: round(ma200), rsi14: round(rsi(prices)) },
+      indicators: {
+        ma20: round(ma20), ma50: round(ma50), ma200: round(ma200), rsi14: round(rsiNow),
+        rsiPrevious: round(rsiPrev), rsiChange: round(rsiNow != null && rsiPrev != null ? rsiNow - rsiPrev : null),
+        rsiState: rsiNow == null ? 'Chưa đủ dữ liệu' : rsiNow < 30 ? 'Quá bán' : rsiNow > 70 ? 'Quá mua' : rsiNow >= 50 ? 'Động lượng nghiêng tăng' : 'Động lượng nghiêng giảm',
+        divergence,
+        volume: round(last.volume), volumeMA20: round(volAvg), rvol: round(rvol),
+        volumeState: rvol == null ? 'Chưa đủ dữ liệu' : rvol >= 2 ? 'Đột biến ≥ 2 lần' : rvol >= 1.5 ? 'Cao hơn bình thường' : rvol >= 1.2 ? 'Nhỉnh hơn trung bình' : 'Bình thường/thấp',
+      },
+      reversal,
       levels,
-      history: rows.slice(-220).map(r => ({ date: r.date, close: r.close })),
+      history: recentHistory,
       source: "Yahoo Finance",
       updatedAt: last.date,
     }, { headers: { "Cache-Control": "s-maxage=300, stale-while-revalidate=600" } });
