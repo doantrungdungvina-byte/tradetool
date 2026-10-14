@@ -4,7 +4,6 @@ export const runtime = "nodejs";
 export const revalidate = 300;
 
 const FX = {
-  XAUUSD: "GC=F",
   BTCUSD: "BTC-USD",
   EURUSD: "EURUSD=X",
   GBPUSD: "GBPUSD=X",

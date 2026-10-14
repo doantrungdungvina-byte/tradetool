@@ -10,7 +10,7 @@ const TABS = [
 ];
 
 const FX_SYMBOLS = [
-  ["XAUUSD", "Vàng thế giới (GC=F)"],
+  ["XAUUSD", "Vàng thế giới (Twelve Data XAU/USD)"],
   ["BTCUSD", "Bitcoin"],
   ["EURUSD", "EUR/USD"],
   ["GBPUSD", "GBP/USD"],
@@ -113,6 +113,7 @@ export default function Home() {
   const [tab, setTab] = useState("stock");
   const [symbol, setSymbol] = useState("FPT");
   const [fxSymbol, setFxSymbol] = useState("XAUUSD");
+  const [xauInterval, setXauInterval] = useState("5min");
   const [capital, setCapital] = useState("50000000");
   const [fundSymbol, setFundSymbol] = useState("EVESG");
   const [marketData, setMarketData] = useState(null);
@@ -127,7 +128,10 @@ export default function Home() {
     setLoading(kind);
     setError("");
     try {
-      const res = await fetch(`/api/market?symbol=${encodeURIComponent(currentSymbol)}&kind=${kind}`, { cache: "no-store" });
+      const endpoint = kind === "forex" && currentSymbol === "XAUUSD"
+        ? `/api/xauusd?interval=${encodeURIComponent(xauInterval)}`
+        : `/api/market?symbol=${encodeURIComponent(currentSymbol)}&kind=${kind}`;
+      const res = await fetch(endpoint, { cache: "no-store" });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Không tải được dữ liệu thị trường.");
       if (kind === "forex") setFxData(json);
@@ -250,10 +254,20 @@ export default function Home() {
           <h2>🌎 Forex / XAUUSD / BTCUSD</h2>
           <div className="form-grid">
             <label>Tài sản
-              <select value={fxSymbol} onChange={(e) => setFxSymbol(e.target.value)}>
+              <select value={fxSymbol} onChange={(e) => { setFxSymbol(e.target.value); setFxData(null); }}>
                 {FX_SYMBOLS.map(([value, label]) => <option key={value} value={value}>{value} — {label}</option>)}
               </select>
             </label>
+            {fxSymbol === "XAUUSD" && <label>Khung thời gian
+              <select value={xauInterval} onChange={(e) => { setXauInterval(e.target.value); setFxData(null); }}>
+                <option value="5min">M5</option>
+                <option value="15min">M15</option>
+                <option value="30min">M30</option>
+                <option value="1h">H1</option>
+                <option value="4h">H4</option>
+                <option value="1day">D1</option>
+              </select>
+            </label>}
             <button className="primary action" disabled={loading === "forex"} onClick={() => loadMarket("forex")}>
               {loading === "forex" ? "Đang tải..." : "🔎 TẢI DỮ LIỆU"}
             </button>
@@ -261,14 +275,13 @@ export default function Home() {
           {fxData && (
             <>
               <div className="metrics">
-                <Metric label="Giá gần nhất" value={fmt(fxData.price)} sub={`${fxChange >= 0 ? "+" : ""}${fmt(fxChange)}% so với phiên trước`} positive={fxChange >= 0} />
+                <Metric label="Giá gần nhất" value={fmt(fxData.price)} sub={`${fxChange >= 0 ? "+" : ""}${fmt(fxChange)}% so với ${fxSymbol === "XAUUSD" ? "nến trước" : "phiên trước"}`} positive={fxChange >= 0} />
                 <Metric label="RSI (14)" value={fmt(fxData.indicators.rsi14)} />
                 <Metric label="MA20" value={fmt(fxData.indicators.ma20)} />
                 <Metric label="MA50" value={fmt(fxData.indicators.ma50)} />
               </div>
-              {fxSymbol === "XAUUSD" && <div className="alert info">XAUUSD được đại diện bằng hợp đồng vàng tương lai GC=F của Yahoo Finance, không phải báo giá spot của broker.</div>}
               <PriceChart data={fxData.history} />
-              <p className="muted">Nguồn: Yahoo Finance; không phải dữ liệu giao dịch realtime.</p>
+              <p className="muted">Nguồn: {fxData.source || "Yahoo Finance"}{fxSymbol === "XAUUSD" ? ` · Twelve Data XAU/USD · Khung ${({"5min":"M5","15min":"M15","30min":"M30","1h":"H1","4h":"H4","1day":"D1"})[xauInterval]}` : " · Dữ liệu có thể trễ tùy nhà cung cấp"}. Không tự đặt lệnh giao dịch.</p>
             </>
           )}
         </section>

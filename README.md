@@ -38,6 +38,16 @@ npm start
 ## Other data limitations
 
 - Yahoo Finance prices can be delayed, missing, or unavailable for some Vietnam tickers.
-- XAUUSD is represented by `GC=F` futures, not broker spot prices.
+- XAUUSD uses Twelve Data `XAU/USD`; quotes can differ from individual broker spot prices.
 - The foreign-flow endpoint may return an unavailable-data message instead of inventing values.
 - DCA levels are technical reference calculations, not investment advice.
+
+## XAU/USD price feed (Twelve Data)
+
+- XAUUSD now uses the Twelve Data `XAU/USD` time-series endpoint, not Yahoo's `GC=F` gold futures and not TradingView.
+- Supported intervals: M5 (`5min`), M15 (`15min`), M30 (`30min`), H1 (`1h`), H4 (`4h`), D1 (`1day`).
+- Server route: `GET /api/xauusd?interval=5min`.
+- Set `TWELVE_DATA_API_KEY` in Vercel → Project → Settings → Environment Variables for Production/Preview as needed, then redeploy. Never use a `NEXT_PUBLIC_` prefix for this key.
+- Other Forex/crypto symbols, Vietnamese stock analysis, foreign-flow tab, fund NAV lookup and DCA illustration remain on their existing code paths.
+- The application only fetches market data and calculates indicators; it does not place trades.
+- Twelve Data access, quota, and data delay depend on the user's plan. XAU/USD provider prices may differ from an individual broker's quote.
