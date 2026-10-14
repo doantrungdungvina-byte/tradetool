@@ -51,3 +51,8 @@ Không cần API key cho Yahoo Finance trong mẫu này. Nguồn dữ liệu cô
 ## XAU/USD spot data
 
 The Forex tab now requests the XAU/USD spot quote from GoldPrice.dev (`XAU-USD-SPOT`) rather than Yahoo Finance COMEX gold futures (`GC=F`). Its free/anonymous quote may be delayed by about 15 minutes. Daily spot bars are used for RSI and price-based analysis; consolidated spot volume is not available, so volume/RVOL signals are intentionally omitted for spot gold. The quote and daily-bar endpoints are provider-dependent and can return errors or rate limits.
+
+
+### XAU/USD spot history HTTP 403
+
+The free GoldPrice.dev tier exposes only the most recent 30 days of daily XAU/USD spot bars. The market API requests a rolling 30-calendar-day window. If 403 persists, verify provider tier/status and retry; do not substitute GC=F silently because that is a futures contract, not spot.

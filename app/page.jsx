@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 const TABS = [
   { id: "stock", label: "🇻🇳 VN STOCK" },
@@ -10,7 +10,7 @@ const TABS = [
 ];
 
 const FX_SYMBOLS = [
-  ["XAUUSD", "Vàng giao ngay (XAU/USD spot)"],
+  ["XAUUSD", "Vàng giao ngay từ MT5 (XAUUSDm)"],
   ["BTCUSD", "Bitcoin"],
   ["EURUSD", "EUR/USD"],
   ["GBPUSD", "GBP/USD"],
@@ -74,6 +74,69 @@ function Metric({ label, value, sub, positive }) {
       <div className="metric-value">{value ?? "—"}</div>
       {sub && <div className={`metric-sub ${positive === true ? "up" : positive === false ? "down" : ""}`}>{sub}</div>}
     </div>
+  );
+}
+
+function TradingViewAdvancedChart() {
+  const containerRef = useRef(null);
+  const [widgetError, setWidgetError] = useState(false);
+
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+    setWidgetError(false);
+    container.innerHTML = "";
+
+    const widgetContainer = document.createElement("div");
+    widgetContainer.className = "tradingview-widget-container__widget";
+    widgetContainer.style.width = "100%";
+    widgetContainer.style.height = "100%";
+    container.appendChild(widgetContainer);
+
+    const script = document.createElement("script");
+    script.src = "https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js";
+    script.type = "text/javascript";
+    script.async = true;
+    script.textContent = JSON.stringify({
+      autosize: true,
+      symbol: "FX_IDC:XAUUSD",
+      interval: "15",
+      timezone: "Asia/Ho_Chi_Minh",
+      theme: "light",
+      style: "1",
+      locale: "vi_VN",
+      allow_symbol_change: true,
+      calendar: false,
+      support_host: "https://www.tradingview.com",
+      withdateranges: true,
+      details: true,
+      hotlist: false,
+      hide_side_toolbar: false,
+      save_image: false,
+      studies: ["RSI@tv-basicstudies", "MASimple@tv-basicstudies"],
+      height: 520,
+    });
+    script.onerror = () => setWidgetError(true);
+    container.appendChild(script);
+
+    return () => {
+      container.innerHTML = "";
+    };
+  }, []);
+
+  return (
+    <section className="tv-chart-panel" aria-label="TradingView Advanced Chart XAUUSD">
+      <div className="tv-chart-heading">
+        <div>
+          <h3>TradingView Advanced Chart — XAU/USD</h3>
+          <p className="muted">Nguồn biểu đồ: FX_IDC:XAUUSD · Khung mặc định M15 · Múi giờ Việt Nam</p>
+        </div>
+        <a href="https://www.tradingview.com/chart/?symbol=FX_IDC%3AXAUUSD" target="_blank" rel="noreferrer">Mở trên TradingView ↗</a>
+      </div>
+      {widgetError && <div className="alert info">Không tải được biểu đồ nhúng. Hãy kiểm tra kết nối mạng hoặc mở trực tiếp trên TradingView.</div>}
+      <div ref={containerRef} className="tv-chart-container" />
+      <p className="muted">Biểu đồ do TradingView cung cấp. Nguồn giá, độ trễ và tính năng phụ thuộc vào nhà cung cấp dữ liệu của TradingView. Widget không cung cấp dữ liệu OHLC thô cho API của website.</p>
+    </section>
   );
 }
 
@@ -172,7 +235,10 @@ export default function Home() {
     setLoading(kind);
     setError("");
     try {
-      const res = await fetch(`/api/market?symbol=${encodeURIComponent(currentSymbol)}&kind=${kind}`, { cache: "no-store" });
+      const endpoint = kind === "forex" && currentSymbol === "XAUUSD"
+        ? "/api/mt5?symbol=XAUUSDm"
+        : `/api/market?symbol=${encodeURIComponent(currentSymbol)}&kind=${kind}`;
+      const res = await fetch(endpoint, { cache: "no-store" });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Không tải được dữ liệu thị trường.");
       if (kind === "forex") setFxData(json);
@@ -304,6 +370,7 @@ export default function Home() {
               {loading === "forex" ? "Đang tải..." : "🔎 TẢI DỮ LIỆU"}
             </button>
           </div>
+          {fxSymbol === "XAUUSD" && <TradingViewAdvancedChart />}
           {fxData && (
             <>
               <div className="metrics">
@@ -312,10 +379,16 @@ export default function Home() {
                 <Metric label="MA20" value={fmt(fxData.indicators.ma20)} />
                 <Metric label="MA50" value={fmt(fxData.indicators.ma50)} />
               </div>
-              {fxSymbol === "XAUUSD" && <div className="alert info">Đang lấy giá vàng giao ngay XAU/USD từ GoldPrice.dev, không dùng hợp đồng tương lai GC=F. Nguồn miễn phí có thể trễ khoảng 15 phút; đây không phải báo giá trực tiếp từ broker.</div>}
+              {fxSymbol === "XAUUSD" && <div className="alert info">Biểu đồ phía trên dùng TradingView FX_IDC:XAUUSD. Các chỉ số bên dưới vẫn lấy từ API dữ liệu hiện có của website; biểu đồ nhúng không tự cấp dữ liệu thô cho RSI/Reversal/DCA.</div>}
+              <div className="metrics">
+                <Metric label="Bid MT5" value={fmt(fxData.bid, fxData.digits ?? 2)} />
+                <Metric label="Ask MT5" value={fmt(fxData.ask, fxData.digits ?? 2)} />
+                <Metric label="Spread (points)" value={fmt(fxData.spreadPoints, 0)} />
+                <Metric label="Broker symbol" value={fxData.brokerSymbol || "XAUUSDm"} />
+              </div>
               <PriceChart data={fxData.history} />
               <TechnicalAnalysis data={fxData} />
-              <p className="muted">Nguồn: {fxData.source || "Yahoo Finance"}. {fxData.sourceNote || "Dữ liệu có thể trễ và khác báo giá tại broker."} {fxData.quoteTimestamp ? `Cập nhật nguồn: ${new Date(fxData.quoteTimestamp).toLocaleString("vi-VN", { timeZone: "Asia/Ho_Chi_Minh" })}.` : ""}</p>
+              <p className="muted">Nguồn: {fxData.source || "Yahoo Finance"}. {fxData.sourceNote || "Dữ liệu MT5 từ broker được gửi qua VPS."} {fxData.quoteTimestamp ? `Cập nhật nguồn: ${new Date(fxData.quoteTimestamp).toLocaleString("vi-VN", { timeZone: "Asia/Ho_Chi_Minh" })}.` : ""}</p>
             </>
           )}
         </section>

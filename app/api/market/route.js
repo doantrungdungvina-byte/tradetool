@@ -54,9 +54,10 @@ async function getSpotGoldRows() {
   if (!Number.isFinite(spotPrice) || spotPrice <= 0) throw new Error("Nguồn giá vàng spot không trả về giá hợp lệ.");
 
   const now = new Date();
-  const fromDate = new Date(now.getTime() - 35 * 86400000).toISOString().slice(0, 10);
+  // Free tier allows only the most recent 30 days; request 30 calendar days, not 35.
+  const fromDate = new Date(now.getTime() - 29 * 86400000).toISOString().slice(0, 10);
   const toDate = now.toISOString().slice(0, 10);
-  const barsUrl = `https://api.goldprice.dev/v1/bars?symbol=XAU-USD-SPOT&interval=1d&from=${fromDate}&to=${toDate}&limit=100`;
+  const barsUrl = `https://api.goldprice.dev/v1/bars?symbol=XAU-USD-SPOT&interval=1d&from=${fromDate}&to=${toDate}&limit=30`;
   const barsResponse = await fetch(barsUrl, { headers, cache: "no-store", signal: AbortSignal.timeout(10000) });
   if (!barsResponse.ok) throw new Error(`Đã lấy được giá spot nhưng lịch sử kỹ thuật trả HTTP ${barsResponse.status}.`);
   const barsPayload = await barsResponse.json();
