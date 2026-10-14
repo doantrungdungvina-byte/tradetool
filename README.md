@@ -46,3 +46,8 @@ Không cần API key cho Yahoo Finance trong mẫu này. Nguồn dữ liệu cô
 - Khối ngoại hiện chưa kết nối nguồn lịch sử miễn phí đã được xác minh. API trả thông báo rõ, không hiển thị số liệu giả.
 - Bộ đọc NAV CafeF là best-effort; nếu không đọc được NAV, hãy đối chiếu Fmarket. Cần tích hợp API/nguồn dữ liệu được phép sử dụng để bảo đảm độ ổn định.
 - Mức DCA là phép tính kỹ thuật tham khảo, không phải khuyến nghị mua bán.
+
+
+## XAU/USD spot data
+
+The Forex tab now requests the XAU/USD spot quote from GoldPrice.dev (`XAU-USD-SPOT`) rather than Yahoo Finance COMEX gold futures (`GC=F`). Its free/anonymous quote may be delayed by about 15 minutes. Daily spot bars are used for RSI and price-based analysis; consolidated spot volume is not available, so volume/RVOL signals are intentionally omitted for spot gold. The quote and daily-bar endpoints are provider-dependent and can return errors or rate limits.

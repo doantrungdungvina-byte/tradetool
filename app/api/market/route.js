@@ -4,7 +4,6 @@ export const runtime = "nodejs";
 export const revalidate = 300;
 
 const FX = {
-  XAUUSD: "GC=F",
   BTCUSD: "BTC-USD",
   EURUSD: "EURUSD=X",
   GBPUSD: "GBPUSD=X",
@@ -41,6 +40,45 @@ function rsiSeries(values, period = 14) {
   return out;
 }
 function round(n) { return Number.isFinite(n) ? Number(n.toFixed(4)) : null; }
+
+async function getSpotGoldRows() {
+  // Spot XAU/USD source. Anonymous/free data may be delayed; expose provider metadata.
+  const headers = { Accept: "application/json", "User-Agent": "TradingTools/1.0" };
+  const priceResponse = await fetch("https://api.goldprice.dev/v1/prices?symbol=XAU-USD-SPOT", {
+    headers, cache: "no-store", signal: AbortSignal.timeout(10000),
+  });
+  if (!priceResponse.ok) throw new Error(`Nguồn giá vàng spot trả HTTP ${priceResponse.status}.`);
+  const pricePayload = await priceResponse.json();
+  const spot = pricePayload?.symbols?.find(x => x.symbol === "XAU" && x.quote_currency === "USD") || pricePayload?.symbols?.[0];
+  const spotPrice = Number(spot?.price);
+  if (!Number.isFinite(spotPrice) || spotPrice <= 0) throw new Error("Nguồn giá vàng spot không trả về giá hợp lệ.");
+
+  const now = new Date();
+  const fromDate = new Date(now.getTime() - 35 * 86400000).toISOString().slice(0, 10);
+  const toDate = now.toISOString().slice(0, 10);
+  const barsUrl = `https://api.goldprice.dev/v1/bars?symbol=XAU-USD-SPOT&interval=1d&from=${fromDate}&to=${toDate}&limit=100`;
+  const barsResponse = await fetch(barsUrl, { headers, cache: "no-store", signal: AbortSignal.timeout(10000) });
+  if (!barsResponse.ok) throw new Error(`Đã lấy được giá spot nhưng lịch sử kỹ thuật trả HTTP ${barsResponse.status}.`);
+  const barsPayload = await barsResponse.json();
+  const rows = (barsPayload?.bars || []).map(bar => ({
+    date: String(bar.bar_start || "").slice(0, 10),
+    open: Number(bar.open), high: Number(bar.high), low: Number(bar.low), close: Number(bar.close),
+    volume: null, // No consolidated exchange volume exists for spot XAU/USD.
+  })).filter(r => r.date && [r.open, r.high, r.low, r.close].every(Number.isFinite))
+    .sort((a, b) => a.date.localeCompare(b.date));
+  if (rows.length < 15) throw new Error("Lịch sử XAU/USD spot chưa đủ để tính RSI. Vui lòng thử lại sau.");
+  const last = rows.at(-1);
+  last.close = spotPrice;
+  last.high = Math.max(last.high, spotPrice);
+  last.low = Math.min(last.low, spotPrice);
+  return {
+    rows, spotPrice, providerDate: spot?.computed_at || null, isStale: spot?.is_stale ?? null,
+    yahooSymbol: "XAU-USD-SPOT", source: "GoldPrice.dev — XAU/USD spot",
+    sourceNote: spot?.is_stale
+      ? "Nhà cung cấp đánh dấu dữ liệu cũ; hãy kiểm tra thời điểm cập nhật trước khi giao dịch."
+      : "Giá vàng giao ngay XAU/USD; dữ liệu miễn phí có thể trễ khoảng 15 phút. Volume tập trung không có sẵn cho thị trường spot.",
+  };
+}
 function swingPoints(rows, field, start, end, radius = 2, type = 'low') {
   const found = [];
   for (let i = Math.max(radius, start); i < Math.min(end, rows.length - radius); i++) {
@@ -112,27 +150,32 @@ export async function GET(request) {
   if (!/^[A-Z0-9^=.-]{1,20}$/.test(symbol)) {
     return NextResponse.json({ error: "Mã tài sản không hợp lệ." }, { status: 400 });
   }
+  const isSpotGold = kind === "forex" && symbol === "XAUUSD";
   const yahooSymbol = kind === "forex" ? (FX[symbol] || symbol) : `${symbol}.VN`;
   const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(yahooSymbol)}?range=2y&interval=1d&events=history`;
   try {
-    const response = await fetch(url, {
-      headers: { "User-Agent": "Mozilla/5.0 TradingTools/1.0", "Accept": "application/json" },
-      next: { revalidate: 300 },
-    });
-    if (!response.ok) throw new Error(`Yahoo Finance trả HTTP ${response.status} cho ${yahooSymbol}.`);
-    const payload = await response.json();
-    const result = payload?.chart?.result?.[0];
-    if (!result?.timestamp?.length) throw new Error(`Không có lịch sử giá cho ${symbol}. Thử kiểm tra mã hoặc nguồn dữ liệu.`);
-    const q = result.indicators?.quote?.[0] || {};
-    const rows = result.timestamp.map((time, i) => ({
-      date: new Date(time * 1000).toISOString().slice(0, 10),
-      open: q.open?.[i],
-      high: q.high?.[i],
-      low: q.low?.[i],
-      close: q.close?.[i],
-      volume: q.volume?.[i] || 0,
-    })).filter(r => [r.open, r.high, r.low, r.close].every(v => Number.isFinite(v)));
-    if (rows.length < 20) throw new Error(`Dữ liệu lịch sử của ${symbol} quá ít để phân tích.`);
+    let spotMeta = null;
+    let rows;
+    if (isSpotGold) {
+      spotMeta = await getSpotGoldRows();
+      rows = spotMeta.rows;
+    } else {
+      const response = await fetch(url, {
+        headers: { "User-Agent": "Mozilla/5.0 TradingTools/1.0", "Accept": "application/json" },
+        next: { revalidate: 300 },
+      });
+      if (!response.ok) throw new Error(`Yahoo Finance trả HTTP ${response.status} cho ${yahooSymbol}.`);
+      const payload = await response.json();
+      const result = payload?.chart?.result?.[0];
+      if (!result?.timestamp?.length) throw new Error(`Không có lịch sử giá cho ${symbol}. Thử kiểm tra mã hoặc nguồn dữ liệu.`);
+      const q = result.indicators?.quote?.[0] || {};
+      rows = result.timestamp.map((time, i) => ({
+        date: new Date(time * 1000).toISOString().slice(0, 10),
+        open: q.open?.[i], high: q.high?.[i], low: q.low?.[i], close: q.close?.[i],
+        volume: q.volume?.[i] ?? null,
+      })).filter(r => [r.open, r.high, r.low, r.close].every(v => Number.isFinite(v)));
+    }
+    if (rows.length < (isSpotGold ? 15 : 20)) throw new Error(`Dữ liệu lịch sử của ${symbol} quá ít để phân tích.`);
     const closes = rows.map(r => r.close);
     const last = rows.at(-1), prev = rows.at(-2);
     const ma20 = average(closes.slice(-20));
@@ -167,8 +210,9 @@ export async function GET(request) {
     }
     const prices = rows.map(r => r.close);
     const rsiValues = rsiSeries(prices, 14);
-    const volumeValues = rows.map(r => r.volume);
-    const volumeMA20 = sma(volumeValues, 20);
+    const hasVolume = rows.some(r => Number.isFinite(r.volume) && r.volume > 0);
+    const volumeValues = rows.map(r => Number.isFinite(r.volume) ? r.volume : 0);
+    const volumeMA20 = hasVolume ? sma(volumeValues, 20) : Array(rows.length).fill(null);
     const rsiNow = rsiValues.at(-1);
     const rsiPrev = rsiValues.at(-2);
     const volAvg = volumeMA20.at(-1);
@@ -181,21 +225,24 @@ export async function GET(request) {
     });
     const currency = kind === "stock" ? "VND" : "USD";
     return NextResponse.json({
-      symbol, yahooSymbol, currency,
-      price: round(last.close),
-      changePct: round((last.close / prev.close - 1) * 100),
+      symbol, yahooSymbol: spotMeta?.yahooSymbol || yahooSymbol, currency,
+      price: round(isSpotGold ? spotMeta.spotPrice : last.close),
+      changePct: round(((isSpotGold ? spotMeta.spotPrice : last.close) / prev.close - 1) * 100),
       indicators: {
         ma20: round(ma20), ma50: round(ma50), ma200: round(ma200), rsi14: round(rsiNow),
         rsiPrevious: round(rsiPrev), rsiChange: round(rsiNow != null && rsiPrev != null ? rsiNow - rsiPrev : null),
         rsiState: rsiNow == null ? 'Chưa đủ dữ liệu' : rsiNow < 30 ? 'Quá bán' : rsiNow > 70 ? 'Quá mua' : rsiNow >= 50 ? 'Động lượng nghiêng tăng' : 'Động lượng nghiêng giảm',
         divergence,
-        volume: round(last.volume), volumeMA20: round(volAvg), rvol: round(rvol),
-        volumeState: rvol == null ? 'Chưa đủ dữ liệu' : rvol >= 2 ? 'Đột biến ≥ 2 lần' : rvol >= 1.5 ? 'Cao hơn bình thường' : rvol >= 1.2 ? 'Nhỉnh hơn trung bình' : 'Bình thường/thấp',
+        volume: hasVolume ? round(last.volume) : null, volumeMA20: round(volAvg), rvol: rvol == null || !hasVolume ? null : round(rvol),
+        volumeState: !hasVolume ? 'Không có volume tập trung cho thị trường spot' : rvol == null ? 'Chưa đủ dữ liệu' : rvol >= 2 ? 'Đột biến ≥ 2 lần' : rvol >= 1.5 ? 'Cao hơn bình thường' : rvol >= 1.2 ? 'Nhỉnh hơn trung bình' : 'Bình thường/thấp',
       },
       reversal,
       levels,
       history: recentHistory,
-      source: "Yahoo Finance",
+      source: spotMeta?.source || "Yahoo Finance",
+      sourceNote: spotMeta?.sourceNote || "Dữ liệu lịch sử Yahoo Finance có thể trễ và khác báo giá tại broker.",
+      quoteTimestamp: spotMeta?.providerDate || null,
+      isStale: spotMeta?.isStale ?? null,
       updatedAt: last.date,
     }, { headers: { "Cache-Control": "s-maxage=300, stale-while-revalidate=600" } });
   } catch (error) {

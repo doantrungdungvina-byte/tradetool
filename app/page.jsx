@@ -10,7 +10,7 @@ const TABS = [
 ];
 
 const FX_SYMBOLS = [
-  ["XAUUSD", "Vàng thế giới (GC=F)"],
+  ["XAUUSD", "Vàng giao ngay (XAU/USD spot)"],
   ["BTCUSD", "Bitcoin"],
   ["EURUSD", "EUR/USD"],
   ["GBPUSD", "GBP/USD"],
@@ -308,14 +308,14 @@ export default function Home() {
             <>
               <div className="metrics">
                 <Metric label="Giá gần nhất" value={fmt(fxData.price)} sub={`${fxChange >= 0 ? "+" : ""}${fmt(fxChange)}% so với phiên trước`} positive={fxChange >= 0} />
-                <Metric label="RSI (14)" value={fmt(fxData.indicators.rsi14)} />
+                <Metric label="RSI (14)" value={fmt(fxData.indicators.rsi14)} sub={fxData.indicators.rsiState} />
                 <Metric label="MA20" value={fmt(fxData.indicators.ma20)} />
                 <Metric label="MA50" value={fmt(fxData.indicators.ma50)} />
               </div>
-              {fxSymbol === "XAUUSD" && <div className="alert info">XAUUSD được đại diện bằng hợp đồng vàng tương lai GC=F của Yahoo Finance, không phải báo giá spot của broker.</div>}
+              {fxSymbol === "XAUUSD" && <div className="alert info">Đang lấy giá vàng giao ngay XAU/USD từ GoldPrice.dev, không dùng hợp đồng tương lai GC=F. Nguồn miễn phí có thể trễ khoảng 15 phút; đây không phải báo giá trực tiếp từ broker.</div>}
               <PriceChart data={fxData.history} />
               <TechnicalAnalysis data={fxData} />
-              <p className="muted">Nguồn: Yahoo Finance; không phải dữ liệu giao dịch realtime.</p>
+              <p className="muted">Nguồn: {fxData.source || "Yahoo Finance"}. {fxData.sourceNote || "Dữ liệu có thể trễ và khác báo giá tại broker."} {fxData.quoteTimestamp ? `Cập nhật nguồn: ${new Date(fxData.quoteTimestamp).toLocaleString("vi-VN", { timeZone: "Asia/Ho_Chi_Minh" })}.` : ""}</p>
             </>
           )}
         </section>
