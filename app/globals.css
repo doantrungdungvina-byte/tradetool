@@ -50,12 +50,3 @@ a{color:#1c62c5;text-decoration:none}a:hover{text-decoration:underline}
 .footer{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;padding:24px 4px;color:#8b93a1;font-size:12px}
 @media(max-width:900px){.shell{padding:20px 14px}.stock-grid,.form-grid{grid-template-columns:1fr}.primary.action{width:100%}.metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.panel{padding:18px}.hero{align-items:flex-start}.tabs{margin-bottom:18px}}
 @media(max-width:480px){.metrics{grid-template-columns:1fr 1fr}.metric{padding:13px}.metric-value{font-size:18px}.brand-mark{width:44px;height:44px;font-size:34px}.tab{padding-left:10px;padding-right:10px}}
-
-
-.tv-chart-panel{margin:24px 0 28px;border:1px solid var(--line);border-radius:14px;padding:16px;background:#fff;overflow:hidden}
-.tv-chart-heading{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;margin-bottom:12px}
-.tv-chart-heading h3{margin:0 0 6px}
-.tv-chart-heading a{font-size:13px;color:var(--blue);white-space:nowrap;text-decoration:none}
-.tv-chart-container{height:520px;width:100%;min-width:0;position:relative}
-.tv-chart-container iframe{max-width:100%}
-@media(max-width:640px){.tv-chart-panel{padding:10px}.tv-chart-heading{flex-direction:column}.tv-chart-container{height:440px}}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 
 const TABS = [
   { id: "stock", label: "🇻🇳 VN STOCK" },
@@ -10,7 +10,7 @@ const TABS = [
 ];
 
 const FX_SYMBOLS = [
-  ["XAUUSD", "Vàng giao ngay từ MT5 (XAUUSDm)"],
+  ["XAUUSD", "Vàng thế giới (GC=F)"],
   ["BTCUSD", "Bitcoin"],
   ["EURUSD", "EUR/USD"],
   ["GBPUSD", "GBP/USD"],
@@ -77,120 +77,6 @@ function Metric({ label, value, sub, positive }) {
   );
 }
 
-function TradingViewAdvancedChart() {
-  const containerRef = useRef(null);
-  const [widgetError, setWidgetError] = useState(false);
-
-  useEffect(() => {
-    const container = containerRef.current;
-    if (!container) return;
-    setWidgetError(false);
-    container.innerHTML = "";
-
-    const widgetContainer = document.createElement("div");
-    widgetContainer.className = "tradingview-widget-container__widget";
-    widgetContainer.style.width = "100%";
-    widgetContainer.style.height = "100%";
-    container.appendChild(widgetContainer);
-
-    const script = document.createElement("script");
-    script.src = "https://s3.tradingview.com/external-embedding/embed-widget-advanced-chart.js";
-    script.type = "text/javascript";
-    script.async = true;
-    script.textContent = JSON.stringify({
-      autosize: true,
-      symbol: "FX_IDC:XAUUSD",
-      interval: "15",
-      timezone: "Asia/Ho_Chi_Minh",
-      theme: "light",
-      style: "1",
-      locale: "vi_VN",
-      allow_symbol_change: true,
-      calendar: false,
-      support_host: "https://www.tradingview.com",
-      withdateranges: true,
-      details: true,
-      hotlist: false,
-      hide_side_toolbar: false,
-      save_image: false,
-      studies: ["RSI@tv-basicstudies", "MASimple@tv-basicstudies"],
-      height: 520,
-    });
-    script.onerror = () => setWidgetError(true);
-    container.appendChild(script);
-
-    return () => {
-      container.innerHTML = "";
-    };
-  }, []);
-
-  return (
-    <section className="tv-chart-panel" aria-label="TradingView Advanced Chart XAUUSD">
-      <div className="tv-chart-heading">
-        <div>
-          <h3>TradingView Advanced Chart — XAU/USD</h3>
-          <p className="muted">Nguồn biểu đồ: FX_IDC:XAUUSD · Khung mặc định M15 · Múi giờ Việt Nam</p>
-        </div>
-        <a href="https://www.tradingview.com/chart/?symbol=FX_IDC%3AXAUUSD" target="_blank" rel="noreferrer">Mở trên TradingView ↗</a>
-      </div>
-      {widgetError && <div className="alert info">Không tải được biểu đồ nhúng. Hãy kiểm tra kết nối mạng hoặc mở trực tiếp trên TradingView.</div>}
-      <div ref={containerRef} className="tv-chart-container" />
-      <p className="muted">Biểu đồ do TradingView cung cấp. Nguồn giá, độ trễ và tính năng phụ thuộc vào nhà cung cấp dữ liệu của TradingView. Widget không cung cấp dữ liệu OHLC thô cho API của website.</p>
-    </section>
-  );
-}
-
-function TechnicalAnalysis({ data }) {
-  if (!data) return null;
-  const indicators = data.indicators || {};
-  const reversal = data.reversal || {};
-  const parts = reversal.parts || {};
-  const rsi = indicators.rsi14 == null ? Number.NaN : Number(indicators.rsi14);
-  const rsiTone = Number.isFinite(rsi) && (rsi < 30 || rsi > 70) ? "alert info" : "alert info";
-  const volumeText = indicators.volumeState || "Chưa có dữ liệu";
-  const divergence = indicators.divergence || {};
-  const partLabels = [
-    ["Nến / râu nến", parts.candle],
-    ["RSI", parts.rsi],
-    ["Khối lượng", parts.volume],
-    ["Vị trí giá", parts.location],
-    ["Nến xác nhận", parts.confirmation],
-  ];
-  return (
-    <section className="analysis-section">
-      <h3>🧭 Phân tích Reversal — điểm đảo chiều</h3>
-      <div className="metrics">
-        <Metric label="Điểm Reversal" value={`${reversal.score ?? "—"}/100`} sub="Điểm kỹ thuật tham khảo, không phải xác suất thắng" />
-        <Metric label="Trạng thái" value={reversal.signal || "Chưa đủ dữ liệu"} />
-        <Metric label="Râu nến dưới" value={data.history?.at(-1)?.low != null ? `${fmt(reversal.candle?.lowerWickPct)}%` : "—"} />
-        <Metric label="Râu nến trên" value={data.history?.at(-1)?.high != null ? `${fmt(reversal.candle?.upperWickPct)}%` : "—"} />
-      </div>
-      <div className="table-scroll"><table>
-        <thead><tr><th>Thành phần</th><th>Điểm</th><th>Diễn giải</th></tr></thead>
-        <tbody>{partLabels.map(([label, score]) => <tr key={label}><td>{label}</td><td>{score ?? 0}/20</td><td>{score >= 14 ? "Ủng hộ tín hiệu" : score >= 8 ? "Có dấu hiệu nhẹ" : "Chưa xác nhận"}</td></tr>)}</tbody>
-      </table></div>
-      {reversal.notes?.length > 0 && <ul className="analysis-notes">{reversal.notes.map((note, i) => <li key={i}>{note}</li>)}</ul>}
-      <p className="muted">Điểm được tính từ nến, RSI, khối lượng, vị trí giá và nến xác nhận. Tín hiệu chỉ là bộ lọc kỹ thuật; cần xem xu hướng lớn, thanh khoản và quản trị rủi ro.</p>
-
-      <h3>📉 RSI (14) — Động lượng &amp; phân kỳ</h3>
-      <div className="metrics">
-        <Metric label="RSI hiện tại" value={fmt(indicators.rsi14)} sub={indicators.rsiState || ""} />
-        <Metric label="Thay đổi RSI" value={indicators.rsiChange == null ? "—" : `${indicators.rsiChange > 0 ? "+" : ""}${fmt(indicators.rsiChange)}`} positive={indicators.rsiChange == null ? undefined : indicators.rsiChange >= 0} />
-        <Metric label="Phân kỳ" value={divergence.label || "Chưa xác định"} />
-      </div>
-      <div className={rsiTone}><strong>Diễn giải RSI:</strong> {rsi < 30 ? "RSI dưới 30: vùng quá bán, chưa đồng nghĩa giá chắc chắn đảo chiều tăng." : rsi > 70 ? "RSI trên 70: vùng quá mua, chưa đồng nghĩa giá chắc chắn giảm." : rsi >= 50 ? "RSI trên hoặc bằng 50: động lượng tương đối nghiêng tăng; cần kiểm tra cấu trúc giá." : Number.isFinite(rsi) ? "RSI dưới 50: động lượng tương đối yếu; theo dõi hỗ trợ và khả năng phục hồi." : "Chưa đủ dữ liệu RSI để diễn giải."} <strong>{divergence.label || ""}</strong> {divergence.detail || ""}</div>
-
-      <h3>📊 Khối lượng giao dịch</h3>
-      <div className="metrics">
-        <Metric label="Volume phiên gần nhất" value={fmt(indicators.volume, 0)} />
-        <Metric label="Volume MA20" value={fmt(indicators.volumeMA20, 0)} />
-        <Metric label="RVOL" value={indicators.rvol == null ? "—" : `${fmt(indicators.rvol)}x`} sub={volumeText} positive={indicators.rvol >= 1.5 ? true : indicators.rvol < 0.8 ? false : undefined} />
-      </div>
-      <p className="muted">RVOL = khối lượng phiên gần nhất / khối lượng trung bình 20 phiên. RVOL cao cho biết giao dịch sôi động hơn bình thường, không tự động xác nhận mua hay bán.</p>
-    </section>
-  );
-}
-
 function PriceChart({ data }) {
   if (!data?.length) return null;
   const values = data.map((d) => d.close).filter(Number.isFinite);
@@ -235,9 +121,7 @@ export default function Home() {
     setLoading(kind);
     setError("");
     try {
-      const endpoint = kind === "forex" && currentSymbol === "XAUUSD"
-        ? "/api/mt5?symbol=XAUUSDm"
-        : `/api/market?symbol=${encodeURIComponent(currentSymbol)}&kind=${kind}`;
+      const endpoint = kind === "stock" ? `/api/vnstock?symbol=${encodeURIComponent(currentSymbol)}` : `/api/market?symbol=${encodeURIComponent(currentSymbol)}&kind=${kind}`;
       const res = await fetch(endpoint, { cache: "no-store" });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Không tải được dữ liệu thị trường.");
@@ -257,8 +141,8 @@ export default function Home() {
     try {
       const res = await fetch(`/api/foreign?symbol=${encodeURIComponent(symbol.trim().toUpperCase())}`, { cache: "no-store" });
       const json = await res.json();
-      // Keep provider status and source links visible even when no verified data is available.
-      setForeignData({ ...json, httpStatus: res.status, available: res.ok && json.available !== false });
+      if (!res.ok) throw new Error(json.error || "Nguồn miễn phí hiện chưa trả dữ liệu khối ngoại.");
+      setForeignData(json);
     } catch (e) {
       setError(e.message || "Không tải được dữ liệu khối ngoại.");
     } finally {
@@ -339,7 +223,7 @@ export default function Home() {
                 <Metric label="MA50" value={fmt(marketData.indicators.ma50)} />
               </div>
               <PriceChart data={marketData.history} />
-              <TechnicalAnalysis data={marketData} />
+              <p className="muted">MA200: {fmt(marketData.indicators.ma200)} · MACD: {fmt(marketData.indicators.macd)} · ATR14: {fmt(marketData.indicators.atr14)} · Bollinger trên/dưới: {fmt(marketData.indicators.bollingerUpper)} / {fmt(marketData.indicators.bollingerLower)}</p>
               <h3>Kế hoạch mua thăm dò &amp; DCA (tham khảo)</h3>
               <div className="table-scroll"><table>
                 <thead><tr><th>Mức</th><th>Giá tham khảo</th><th>Thấp hơn giá hiện tại</th><th>Cơ sở</th></tr></thead>
@@ -351,7 +235,7 @@ export default function Home() {
                 <thead><tr><th>Lệnh</th><th>Mức</th><th>Vốn phân bổ</th><th>Khối lượng ước tính</th></tr></thead>
                 <tbody>{dcaRows.map((r) => <tr key={r.order}><td>{r.order}</td><td>{r.label}</td><td>{fmt(r.allocation, 0)} đ</td><td>{r.shares.toLocaleString("vi-VN")}</td></tr>)}</tbody>
               </table></div>
-              <p className="muted">Nguồn giá: Yahoo Finance. Dữ liệu có thể trễ, thiếu hoặc không hỗ trợ một số mã Việt Nam.</p>
+              <p className="muted">Nguồn dữ liệu: Vnstock / {marketData.source || "không xác định"} · Phiên gần nhất: {marketData.asOf || "—"}. Dữ liệu có thể trễ hoặc bị giới hạn bởi nhà cung cấp.</p>
             </>
           )}
         </section>
@@ -370,25 +254,17 @@ export default function Home() {
               {loading === "forex" ? "Đang tải..." : "🔎 TẢI DỮ LIỆU"}
             </button>
           </div>
-          {fxSymbol === "XAUUSD" && <TradingViewAdvancedChart />}
           {fxData && (
             <>
               <div className="metrics">
                 <Metric label="Giá gần nhất" value={fmt(fxData.price)} sub={`${fxChange >= 0 ? "+" : ""}${fmt(fxChange)}% so với phiên trước`} positive={fxChange >= 0} />
-                <Metric label="RSI (14)" value={fmt(fxData.indicators.rsi14)} sub={fxData.indicators.rsiState} />
+                <Metric label="RSI (14)" value={fmt(fxData.indicators.rsi14)} />
                 <Metric label="MA20" value={fmt(fxData.indicators.ma20)} />
                 <Metric label="MA50" value={fmt(fxData.indicators.ma50)} />
               </div>
-              {fxSymbol === "XAUUSD" && <div className="alert info">Biểu đồ phía trên dùng TradingView FX_IDC:XAUUSD. Các chỉ số bên dưới vẫn lấy từ API dữ liệu hiện có của website; biểu đồ nhúng không tự cấp dữ liệu thô cho RSI/Reversal/DCA.</div>}
-              <div className="metrics">
-                <Metric label="Bid MT5" value={fmt(fxData.bid, fxData.digits ?? 2)} />
-                <Metric label="Ask MT5" value={fmt(fxData.ask, fxData.digits ?? 2)} />
-                <Metric label="Spread (points)" value={fmt(fxData.spreadPoints, 0)} />
-                <Metric label="Broker symbol" value={fxData.brokerSymbol || "XAUUSDm"} />
-              </div>
+              {fxSymbol === "XAUUSD" && <div className="alert info">XAUUSD được đại diện bằng hợp đồng vàng tương lai GC=F của Yahoo Finance, không phải báo giá spot của broker.</div>}
               <PriceChart data={fxData.history} />
-              <TechnicalAnalysis data={fxData} />
-              <p className="muted">Nguồn: {fxData.source || "Yahoo Finance"}. {fxData.sourceNote || "Dữ liệu MT5 từ broker được gửi qua VPS."} {fxData.quoteTimestamp ? `Cập nhật nguồn: ${new Date(fxData.quoteTimestamp).toLocaleString("vi-VN", { timeZone: "Asia/Ho_Chi_Minh" })}.` : ""}</p>
+              <p className="muted">Nguồn: Yahoo Finance; không phải dữ liệu giao dịch realtime.</p>
             </>
           )}
         </section>
@@ -408,26 +284,15 @@ export default function Home() {
           </div>
           {foreignData && (
             <>
-              {foreignData.available ? (
-                <>
-                  <div className="metrics">
-                    <Metric label="Khối lượng mua" value={fmt(foreignData.buyVolume, 0)} />
-                    <Metric label="Khối lượng bán" value={fmt(foreignData.sellVolume, 0)} />
-                    <Metric label="Mua/bán ròng" value={fmt(foreignData.netVolume, 0)} positive={foreignData.netVolume >= 0} />
-                    <Metric label="Giá trị ròng" value={foreignData.netValue == null ? "Chưa có" : `${fmt(foreignData.netValue, 0)} đ`} positive={foreignData.netValue == null ? undefined : foreignData.netValue >= 0} />
-                  </div>
-                  <p className="muted">{foreignData.source} · {foreignData.note}</p>
-                </>
-              ) : (
-                <div className="alert info">
-                  <strong>Chưa có dữ liệu khối ngoại được xác minh.</strong>
-                  <p>{foreignData.error || "Nguồn hiện tại chưa cung cấp được dữ liệu mua/bán ròng."}</p>
-                  {foreignData.sourceLinks?.length > 0 && <div className="link-row">{foreignData.sourceLinks.map((link) => <a key={link.url} href={link.url} target="_blank" rel="noreferrer">Mở {link.label} ↗</a>)}</div>}
-                </div>
-              )}
+              <div className="metrics">
+                <Metric label="Khối lượng mua" value={fmt(foreignData.buyVolume, 0)} />
+                <Metric label="Khối lượng bán" value={fmt(foreignData.sellVolume, 0)} />
+                <Metric label="Mua/bán ròng" value={fmt(foreignData.netVolume, 0)} positive={foreignData.netVolume >= 0} />
+              </div>
+              <p className="muted">{foreignData.source} · {foreignData.note}</p>
             </>
           )}
-          <div className="alert info">Không dùng tổng khối lượng thị trường để suy ra khối lượng mua/bán của nhà đầu tư nước ngoài. Khi tích hợp được nguồn dữ liệu xác minh, phần này sẽ hiển thị mua, bán, ròng, giá trị ròng và lịch sử 5/20 phiên.</div>
+          <div className="alert info">Nếu nguồn miễn phí không cung cấp lịch sử khối ngoại hoặc chặn truy cập, ứng dụng sẽ báo rõ thay vì hiển thị số liệu giả.</div>
         </section>
       )}
 

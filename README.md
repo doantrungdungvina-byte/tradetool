@@ -1,58 +1,53 @@
-# Trading Tools — Next.js + Vercel
+# TradeTool — Next.js + Vnstock (VCI primary, KBS fallback)
 
-Dự án này chuyển giao diện Streamlit sang Next.js để triển khai trên Vercel.
+Bản cập nhật giữ giao diện và các tab hiện có của TradeTool. Tab VN Stock gọi Python endpoint `/api/vnstock`, lấy OHLCV từ Vnstock: ưu tiên VCI, tự thử KBS nếu VCI lỗi hoặc không trả dữ liệu. Không tự tạo dữ liệu giá.
 
-## Các mục trong giao diện
+## Kiến trúc
 
-- VN Stock: giá lịch sử Yahoo Finance, RSI/MA và các mức DCA tham khảo.
-- Forex/XAUUSD: giá lịch sử Yahoo Finance. XAUUSD dùng GC=F (hợp đồng vàng tương lai), không phải giá spot của broker.
-- Khối ngoại: tab đã giữ lại. API hiện báo rõ khi chưa có nguồn miễn phí ổn định đã xác minh, không tạo số liệu giả.
-- Chứng chỉ quỹ: danh sách mã quỹ và thử đọc NAV từ CafeF; có liên kết Fmarket để đối chiếu.
+- Next.js frontend: `app/`
+- Existing Next.js routes: `app/api/market`, `app/api/foreign`, `app/api/funds`
+- Python Vercel Function: `api/vnstock.py`
+- Dependencies Python: `requirements.txt`
 
-## Chạy thử trên máy
+Vercel hiện hỗ trợ Python Functions; runtime Python đang ở trạng thái Beta theo tài liệu chính thức. Build/deploy và khả năng tương thích phiên bản Vnstock cần xác minh qua deployment logs.
 
-Yêu cầu Node.js 20.9 trở lên.
+## Chạy local
+
+Yêu cầu Node.js 20.9+, Python 3.12, và Vercel CLI mới. Trong thư mục dự án:
 
 ```bash
 npm install
+python -m venv .venv
+# Windows PowerShell:
+.venv\Scripts\Activate.ps1
+# macOS/Linux: source .venv/bin/activate
+pip install -r requirements.txt
 npm run dev
 ```
 
-Mở http://localhost:3000
+Để test Python route đúng như môi trường Vercel, cài Vercel CLI rồi chạy `vercel dev` sau khi `vercel link` dự án. Mở `/api/vnstock?symbol=FPT`.
 
-Kiểm tra bản production:
+## Triển khai Vercel
 
-```bash
-npm run build
-npm start
-```
+1. Tải ZIP và giải nén.
+2. Đẩy **toàn bộ nội dung** thư mục `trading-tools-vercel` lên repository GitHub đang dùng cho TradeTool (nên tạo nhánh mới trước để dễ rollback).
+3. Vercel → Project `tradetool-delta` → Settings → General: kiểm tra Root Directory trỏ đúng thư mục Next.js.
+4. Push nhánh hoặc merge vào nhánh Production đã cấu hình. Vercel sẽ tự build. Nếu dùng repo mới: Vercel → Add New → Project → Import repository.
+5. Kiểm tra Build Logs. Python runtime hiện Beta; nếu build báo không nhận Python function, xem log và tài liệu Vercel Python Runtime/FastAPI để cập nhật cấu hình.
+6. Sau deployment, mở `https://tradetool-delta.vercel.app/api/vnstock?symbol=FPT`. Kết quả hợp lệ có `symbol`, `history`, `indicators`, `source`, `asOf`.
+7. Mở website → tab VN STOCK → nhập FPT/HPG/VCB → Phân tích.
 
-## Triển khai lên Vercel
+## Kiểm tra lỗi
 
-1. Giải nén ZIP.
-2. Tải toàn bộ thư mục `trading-tools-vercel` lên một repository GitHub mới.
-3. Mở https://vercel.com/new và đăng nhập bằng GitHub.
-4. Chọn repository vừa tạo.
-5. Framework preset: Next.js (Vercel tự nhận diện). Không cần đổi Build Command (`npm run build`) hoặc Output Directory.
-6. Bấm Deploy. Vercel cấp một URL `*.vercel.app`.
-7. Muốn tên cụ thể như `trading-tools-abc.vercel.app`, vào Project → Settings → Domains và chọn tên còn trống.
+- `400`: mã không hợp lệ; dùng mã HOSE/HNX/UPCoM, chỉ chữ và số.
+- `502`: VCI và KBS đều lỗi hoặc không trả dữ liệu. Xem trường `details`; không thay thế bằng giá giả.
+- `500`: lỗi cài/nạp thư viện Vnstock; kiểm tra `requirements.txt` và Build Logs.
+- Nếu VCI/KBS trả dữ liệu có mức giá điều chỉnh khác nhau, website hiển thị nguồn thực tế trong response.
 
-Không cần API key cho Yahoo Finance trong mẫu này. Nguồn dữ liệu công khai có thể giới hạn truy cập, chặn tự động hoặc thay đổi cấu trúc.
+## Ghi chú quan trọng
 
-## Giới hạn cần biết
-
-- Đây là bản chuyển đổi giao diện và các chức năng chính sang Next.js; không phải bản dịch từng dòng Python.
-- Nguồn Yahoo Finance là dữ liệu tham khảo, có thể trễ/thiếu và không phù hợp cho lệnh giao dịch tự động.
-- Khối ngoại hiện chưa kết nối nguồn lịch sử miễn phí đã được xác minh. API trả thông báo rõ, không hiển thị số liệu giả.
-- Bộ đọc NAV CafeF là best-effort; nếu không đọc được NAV, hãy đối chiếu Fmarket. Cần tích hợp API/nguồn dữ liệu được phép sử dụng để bảo đảm độ ổn định.
-- Mức DCA là phép tính kỹ thuật tham khảo, không phải khuyến nghị mua bán.
-
-
-## XAU/USD spot data
-
-The Forex tab now requests the XAU/USD spot quote from GoldPrice.dev (`XAU-USD-SPOT`) rather than Yahoo Finance COMEX gold futures (`GC=F`). Its free/anonymous quote may be delayed by about 15 minutes. Daily spot bars are used for RSI and price-based analysis; consolidated spot volume is not available, so volume/RVOL signals are intentionally omitted for spot gold. The quote and daily-bar endpoints are provider-dependent and can return errors or rate limits.
-
-
-### XAU/USD spot history HTTP 403
-
-The free GoldPrice.dev tier exposes only the most recent 30 days of daily XAU/USD spot bars. The market API requests a rolling 30-calendar-day window. If 403 persists, verify provider tier/status and retry; do not substitute GC=F silently because that is a futures contract, not spot.
+- Vnstock Community có thể giới hạn nguồn theo cấp sử dụng; nếu tài khoản không có quyền dùng KBS hoặc VCI, fallback không thể vượt qua giới hạn quyền.
+- Vnstock trả OHLCV cổ phiếu theo nghìn đồng; API chuyển sang VND để giao diện và phép tính số lượng DCA nhất quán. VCI và KBS có thể khác nhau về giá điều chỉnh; không so sánh chuỗi từ hai nguồn như thể hoàn toàn đồng nhất.
+- Đây là dữ liệu tham khảo/phân tích, có thể trễ hoặc không sẵn sàng. Không dùng riêng kết quả này để tự động đặt lệnh.
+- Tab Forex/Khối ngoại/Chứng chỉ quỹ vẫn dùng route hiện có; thay đổi trong bản này tập trung vào tab VN Stock.
+- Chưa thể xác nhận deployment production cho đến khi bạn push mã lên GitHub và kiểm tra API thực tế trên Vercel.
