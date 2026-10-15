@@ -20,7 +20,6 @@ const TABS = [
   { id: "dca", label: "🧮 DCA" },
   { id: "compound", label: "📈 LÃI KÉP" },
   { id: "calendar", label: "🗓️ LỊCH VẠN NIÊN" },
-  { id: "news", label: "📰 TIN TỨC" },
   { id: "tax", label: "🧾 THUẾ TNCN" },
   { id: "business", label: "🏪 KINH DOANH" },
 ];
@@ -252,45 +251,6 @@ function ShareApp() {
       </div>
     </section>
   );
-}
-
-function SummaryStrip() {
-  const [summary, setSummary] = useState(null);
-  const [summaryError, setSummaryError] = useState(false);
-  useEffect(() => {
-    let alive = true;
-    const load = async () => {
-      try {
-        const res = await fetch("/api/market-summary", { cache: "no-store" });
-        if (!res.ok) throw new Error("Không tải được dữ liệu tổng quan");
-        const json = await res.json();
-        if (alive) { setSummary(json); setSummaryError(false); }
-      } catch {
-        if (alive) setSummaryError(true);
-      }
-    };
-    load();
-    const timer = setInterval(load, 5 * 60 * 1000);
-    return () => { alive = false; clearInterval(timer); };
-  }, []);
-  const money = (value, digits = 0) => Number.isFinite(value) ? value.toLocaleString("vi-VN", { maximumFractionDigits: digits, minimumFractionDigits: digits }) : "Đang cập nhật";
-  const percent = (value) => Number.isFinite(value) ? `${value > 0 ? "+" : ""}${value.toLocaleString("vi-VN", { maximumFractionDigits: 2, minimumFractionDigits: 2 })}%` : "—";
-  const cards = [
-    { key: "gold", icon: "🟡", title: "VÀNG SJC", value: summary?.goldSjc?.value ? `${money(summary.goldSjc.value)} đ/lượng` : "Đang cập nhật", sub: summary?.goldSjc?.note || "Giá mua/bán từ nguồn công khai SJC", source: summary?.goldSjc?.source },
-    { key: "usd", icon: "💱", title: "TỶ GIÁ USD/VND", value: summary?.usdVnd?.value ? `${money(summary.usdVnd.value, 0)} ₫` : "Đang cập nhật", sub: summary?.usdVnd ? `${percent(summary.usdVnd.changePct)} · tỷ giá tham khảo` : "Tỷ giá tham khảo", source: summary?.usdVnd?.source },
-    { key: "index", icon: "📈", title: "VN-INDEX", value: summary?.vnIndex?.price ? money(summary.vnIndex.price, 2) : "Đang cập nhật", sub: summary?.vnIndex ? `${percent(summary.vnIndex.changePct)} so với phiên trước` : "Chỉ số thị trường", source: summary?.vnIndex?.source },
-    { key: "vcb", icon: "🏦", title: "LÃI SUẤT VCB", value: summary?.vcbRate?.value ? `${money(summary.vcbRate.value, 2)}%/năm` : "Đang cập nhật", sub: summary?.vcbRate ? `Kỳ hạn ${summary.vcbRate.term || "tham khảo"}` : "Lãi suất tiền gửi tham khảo", source: summary?.vcbRate?.source },
-  ];
-  return <section className="market-summary" aria-label="Tóm tắt thị trường">
-    <div className="market-summary-head"><strong>📊 TỔNG QUAN THỊ TRƯỜNG</strong><span>{summary?.updatedAt ? `Cập nhật ${new Date(summary.updatedAt).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })}` : summaryError ? "Không kết nối được nguồn dữ liệu" : "Đang tải dữ liệu…"}</span></div>
-    <div className="market-summary-grid">{cards.map((card) => <article className="market-summary-card" key={card.key}>
-      <div className="market-summary-label"><span>{card.icon}</span><span>{card.title}</span></div>
-      <strong className="market-summary-value">{card.value}</strong>
-      <div className="market-summary-sub">{card.sub}</div>
-      {card.source && <div className="market-summary-source">Nguồn: {card.source}</div>}
-    </article>)}</div>
-    <p className="market-summary-note">Dữ liệu mang tính tham khảo; giá vàng SJC và lãi suất ngân hàng có thể chưa được cập nhật nếu nguồn công khai thay đổi.</p>
-  </section>;
 }
 
 export default function Home() {
@@ -578,14 +538,6 @@ export default function Home() {
           </button>
         ))}
       </nav>
-
-      {tab === "news" && (
-        <section className="panel news-market-panel">
-          <h2>📰 Tin tức &amp; Tổng quan thị trường</h2>
-          <p className="muted">Theo dõi nhanh giá vàng SJC, tỷ giá USD/VND, VN-Index và lãi suất Vietcombank tại cùng một nơi.</p>
-          <SummaryStrip />
-        </section>
-      )}
 
       {error && <div className="alert error"><strong>Không thể hoàn tất:</strong> {error}</div>}
 
