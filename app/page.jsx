@@ -3,9 +3,11 @@
 import { useMemo, useState } from "react";
 
 const TABS = [
-  { id: "stock", label: "VN STOCK" },
+  { id: "stock", label: "🇻🇳 VN STOCK" },
   { id: "forex", label: "🌎 FX" },
+  { id: "foreign", label: "🌍 KHỐI NGOẠI" },
   { id: "funds", label: "📈 CHỨNG CHỈ QUỸ" },
+  { id: "dca", label: "🧮 DCA" },
 ];
 
 const FX_SYMBOLS = [
@@ -72,68 +74,6 @@ const fmt = (n, digits = 2) =>
     ? "—"
     : Number(n).toLocaleString("vi-VN", { maximumFractionDigits: digits, minimumFractionDigits: digits });
 
-const firstDefined = (...values) => values.find((value) =>
-  value !== undefined && value !== null && value !== "" && Number.isFinite(Number(value))
-);
-
-function getStockFundamentals(data) {
-  const f = data?.fundamentals || data?.valuation || data?.financials || {};
-  const dividend = data?.dividend || data?.dividends || f?.dividend || {};
-  return {
-    pe: firstDefined(data?.pe, data?.trailingPE, data?.trailingPe, data?.priceEarningsRatio, f?.pe, f?.trailingPE, f?.trailingPe),
-    pb: firstDefined(data?.pb, data?.priceToBook, data?.priceToBookRatio, f?.pb, f?.priceToBook, f?.priceToBookRatio),
-    dividendYield: firstDefined(
-      data?.dividendYield, data?.dividend_yield, data?.dividendYieldPct,
-      dividend?.yield, dividend?.yieldPct, dividend?.dividendYield,
-      f?.dividendYield, f?.dividend_yield
-    ),
-    dividendPerShare: firstDefined(
-      data?.dividendPerShare, data?.dividend_per_share,
-      dividend?.perShare, dividend?.amount, f?.dividendPerShare
-    ),
-    dividendRate: firstDefined(data?.dividendRate, dividend?.rate, f?.dividendRate),
-    dividendDate: data?.dividendDate || data?.exDividendDate || data?.ex_dividend_date ||
-      dividend?.date || dividend?.exDate || f?.dividendDate || null,
-    source: f?.source || data?.fundamentalSource || data?.source || "API thị trường",
-  };
-}
-
-function getPeAssessment(pe) {
-  if (pe == null || !Number.isFinite(Number(pe)) || Number(pe) <= 0) {
-    return {
-      label: "Chưa đủ dữ liệu",
-      detail: "P/E không hợp lệ hoặc doanh nghiệp đang lỗ; không thể kết luận cổ phiếu rẻ chỉ từ chỉ số này.",
-      tone: "neutral",
-    };
-  }
-  if (Number(pe) < 10) {
-    return {
-      label: "P/E thấp",
-      detail: "Có thể đưa vào danh sách nghiên cứu thêm. Kiểm tra lợi nhuận có bền vững không, nợ vay, dòng tiền, ngành và các khoản lợi nhuận bất thường trước khi mua.",
-      tone: "good",
-    };
-  }
-  if (Number(pe) < 15) {
-    return {
-      label: "P/E tương đối thấp",
-      detail: "Có thể hấp dẫn nếu doanh nghiệp có chất lượng tốt và triển vọng ổn định. So sánh với trung bình ngành và lịch sử P/E của chính cổ phiếu.",
-      tone: "neutral",
-    };
-  }
-  if (Number(pe) <= 25) {
-    return {
-      label: "P/E trung bình đến cao",
-      detail: "Đánh giá thêm tốc độ tăng trưởng lợi nhuận, ROE, dòng tiền và mức định giá của ngành.",
-      tone: "neutral",
-    };
-  }
-  return {
-    label: "P/E cao",
-    detail: "Cần tăng trưởng lợi nhuận tương xứng để biện minh cho định giá. Tránh kết luận đắt/rẻ nếu chưa so sánh cùng ngành.",
-    tone: "warning",
-  };
-}
-
 function Metric({ label, value, sub, positive }) {
   return (
     <div className="metric">
@@ -177,20 +117,20 @@ export default function Home() {
   const [xauInterval, setXauInterval] = useState("5min");
   const [capital, setCapital] = useState("50000000");
   const [fundSymbol, setFundSymbol] = useState("EVESG");
-  const [fundSearch, setFundSearch] = useState("");
-  const [fundDropdownOpen, setFundDropdownOpen] = useState(false);
-  const filteredFunds = FUNDS.filter(([code, name]) =>
-    `${code} ${name}`.toLowerCase().includes(fundSearch.toLowerCase())
-  );
   const [marketData, setMarketData] = useState(null);
   const [fxData, setFxData] = useState(null);
-  const [xauMultiData, setXauMultiData] = useState({});
+  const [foreignData, setForeignData] = useState(null);
   const [fundData, setFundData] = useState(null);
   const [stockVolumeData, setStockVolumeData] = useState(null);
   const [stockVolumeRange, setStockVolumeRange] = useState("3mo");
   const [volumeLoading, setVolumeLoading] = useState(false);
   const [loading, setLoading] = useState("");
   const [error, setError] = useState("");
+  const [dcaAsset, setDcaAsset] = useState("FPT");
+  const [dcaCurrency, setDcaCurrency] = useState("VND");
+  const [dcaCurrentPrice, setDcaCurrentPrice] = useState("");
+  const [dcaRowsInput, setDcaRowsInput] = useState([{ id: 1, date: new Date().toISOString().slice(0, 10), quantity: "", price: "" }]);
+  const [nextDcaId, setNextDcaId] = useState(2);
 
   async function loadMarket(kind) {
     const currentSymbol = kind === "forex" ? fxSymbol : symbol.trim().toUpperCase();
@@ -203,31 +143,8 @@ export default function Home() {
       const res = await fetch(endpoint, { cache: "no-store" });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Không tải được dữ liệu thị trường.");
-      if (kind === "forex") {
-        setFxData(json);
-        if (currentSymbol === "XAUUSD") {
-          const intervals = [
-            ["5min", "M5"],
-            ["15min", "M15"],
-            ["1h", "H1"],
-            ["4h", "H4"],
-            ["1day", "D1"],
-          ];
-          const results = await Promise.all(intervals.map(async ([interval, label]) => {
-            if (interval === xauInterval) return [label, json];
-            try {
-              const response = await fetch(`/api/xauusd?interval=${encodeURIComponent(interval)}`, { cache: "no-store" });
-              const data = await response.json();
-              return [label, response.ok ? data : { error: data.error || "Không tải được dữ liệu" }];
-            } catch {
-              return [label, { error: "Không thể kết nối dữ liệu." }];
-            }
-          }));
-          setXauMultiData(Object.fromEntries(results));
-        } else {
-          setXauMultiData({});
-        }
-      } else setMarketData(json);
+      if (kind === "forex") setFxData(json);
+      else setMarketData(json);
     } catch (e) {
       setError(e.message || "Lỗi tải dữ liệu.");
     } finally {
@@ -255,6 +172,21 @@ export default function Home() {
     }
   }
 
+  async function loadForeign() {
+    setLoading("foreign");
+    setError("");
+    setForeignData(null);
+    try {
+      const res = await fetch(`/api/foreign?symbol=${encodeURIComponent(symbol.trim().toUpperCase())}`, { cache: "no-store" });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Nguồn miễn phí hiện chưa trả dữ liệu khối ngoại.");
+      setForeignData(json);
+    } catch (e) {
+      setError(e.message || "Không tải được dữ liệu khối ngoại.");
+    } finally {
+      setLoading("");
+    }
+  }
 
   async function loadFund() {
     setLoading("fund");
@@ -274,8 +206,6 @@ export default function Home() {
 
   const change = marketData?.changePct;
   const fxChange = fxData?.changePct;
-  const stockFundamentals = getStockFundamentals(marketData);
-  const peAssessment = getPeAssessment(stockFundamentals.pe);
   const capitalNumber = Math.max(Number(capital) || 0, 0);
   const dcaRows = useMemo(() => {
     if (!marketData?.levels || !capitalNumber) return [];
@@ -286,6 +216,16 @@ export default function Home() {
       order: i + 1,
     }));
   }, [marketData, capitalNumber]);
+
+  const dcaValidRows = useMemo(() => dcaRowsInput.map((row) => ({
+    ...row, quantity: Math.max(Number(row.quantity) || 0, 0), price: Math.max(Number(row.price) || 0, 0),
+  })).filter((row) => row.quantity > 0 && row.price > 0), [dcaRowsInput]);
+  const dcaTotalQuantity = dcaValidRows.reduce((sum, row) => sum + row.quantity, 0);
+  const dcaTotalCost = dcaValidRows.reduce((sum, row) => sum + row.quantity * row.price, 0);
+  const dcaAveragePrice = dcaTotalQuantity > 0 ? dcaTotalCost / dcaTotalQuantity : null;
+  const dcaNowPrice = Number(dcaCurrentPrice) > 0 ? Number(dcaCurrentPrice) : null;
+  const dcaMarketValue = dcaNowPrice != null ? dcaNowPrice * dcaTotalQuantity : null;
+  const dcaProfit = dcaMarketValue != null ? dcaMarketValue - dcaTotalCost : null;
 
   return (
     <main className="shell">
@@ -330,43 +270,6 @@ export default function Home() {
                 <Metric label="MA20" value={fmt(marketData.indicators.ma20)} />
                 <Metric label="MA50" value={fmt(marketData.indicators.ma50)} />
               </div>
-              <section className="panel fundamentals-panel" style={{ marginTop: 20 }}>
-                <h3>📘 Định giá cơ bản &amp; cổ tức</h3>
-                <p className="muted">
-                  Chỉ số phụ thuộc dữ liệu API và kỳ báo cáo. “—” nghĩa là nguồn hiện tại chưa trả dữ liệu; không tự suy đoán số liệu.
-                </p>
-                <div className="metrics">
-                  <Metric
-                    label="P/E"
-                    value={stockFundamentals.pe == null ? "—" : `${fmt(stockFundamentals.pe)} lần`}
-                    sub="Giá / lợi nhuận trên mỗi cổ phiếu"
-                  />
-                  <Metric
-                    label="P/B"
-                    value={stockFundamentals.pb == null ? "—" : `${fmt(stockFundamentals.pb)} lần`}
-                    sub="Giá / giá trị sổ sách mỗi cổ phiếu"
-                  />
-                  <Metric
-                    label="Tỷ suất cổ tức"
-                    value={stockFundamentals.dividendYield == null ? "—" : `${fmt(stockFundamentals.dividendYield)}%`}
-                    sub="Tỷ lệ cổ tức so với giá cổ phiếu"
-                  />
-                  <Metric
-                    label="Cổ tức / cổ phiếu"
-                    value={stockFundamentals.dividendPerShare == null
-                      ? (stockFundamentals.dividendRate == null ? "—" : `${fmt(stockFundamentals.dividendRate)} đ`)
-                      : `${fmt(stockFundamentals.dividendPerShare)} đ`}
-                    sub={stockFundamentals.dividendDate ? `Ngày GDKHQ / cập nhật: ${stockFundamentals.dividendDate}` : "Theo dữ liệu API nếu có"}
-                  />
-                </div>
-                <div className={`alert ${peAssessment.tone === "good" ? "info" : peAssessment.tone === "warning" ? "error" : "info"}`}>
-                  <strong>Đánh giá P/E: {peAssessment.label}.</strong> {peAssessment.detail}
-                </div>
-                <p className="muted">
-                  Nguồn chỉ số cơ bản: {stockFundamentals.source}. P/E thấp không đồng nghĩa cổ phiếu chắc chắn bị định giá thấp; cần đối chiếu P/B, chất lượng lợi nhuận, nợ, dòng tiền, triển vọng và mặt bằng ngành.
-                </p>
-              </section>
-
               <PriceChart data={marketData.history} />
               <section className="panel" style={{ marginTop: 20 }}>
                 <h3>📊 Thống kê khối lượng giao dịch</h3>
@@ -428,12 +331,12 @@ export default function Home() {
           <h2>🌎 Forex / XAUUSD / BTCUSD</h2>
           <div className="form-grid">
             <label>Tài sản
-              <select value={fxSymbol} onChange={(e) => { setFxSymbol(e.target.value); setFxData(null); setXauMultiData({}); }}>
+              <select value={fxSymbol} onChange={(e) => { setFxSymbol(e.target.value); setFxData(null); }}>
                 {FX_SYMBOLS.map(([value, label]) => <option key={value} value={value}>{value} — {label}</option>)}
               </select>
             </label>
             {fxSymbol === "XAUUSD" && <label>Khung thời gian
-              <select value={xauInterval} onChange={(e) => { setXauInterval(e.target.value); setFxData(null); setXauMultiData({}); }}>
+              <select value={xauInterval} onChange={(e) => { setXauInterval(e.target.value); setFxData(null); }}>
                 <option value="5min">M5</option>
                 <option value="15min">M15</option>
                 <option value="30min">M30</option>
@@ -461,54 +364,94 @@ export default function Home() {
                   <Metric label="Xu hướng MA20/MA50" value={fxData.analysis.maTrend} sub="So sánh giá với MA20 và MA20 với MA50" />
                 </div>
               )}
-              {fxSymbol === "XAUUSD" && (
-                <>
-                  <h3>📊 Reversal đa khung thời gian</h3>
-                  <div className="metrics">
-                    {["M5", "M15", "H1", "H4", "D1"].map((tf) => {
-                      const item = xauMultiData[tf];
-                      return (
-                        <Metric
-                          key={tf}
-                          label={`Reversal ${tf}`}
-                          value={item?.analysis?.reversal || (item?.error ? "Không có dữ liệu" : "Đang tải")}
-                          sub={item?.analysis?.maTrend ? `Xu hướng: ${item.analysis.maTrend} · RSI ${fmt(item.indicators?.rsi14)}` : item?.error || ""}
-                          positive={item?.analysis?.reversal?.includes("tăng") ? true : item?.analysis?.reversal?.includes("giảm") ? false : undefined}
-                        />
-                      );
-                    })}
-                  </div>
-                  <h3>📏 ATR (14) &amp; các mức giá DCA</h3>
-                  <div className="metrics">
-                    <Metric label="ATR (14)" value={fxData.indicators?.atr14 == null ? "Không có dữ liệu" : `$${fmt(fxData.indicators.atr14, 2)}`} sub="Độ biến động trung bình theo khung đang chọn" />
-                    <Metric label="Giá hiện tại" value={`$${fmt(fxData.price, 2)}`} sub={`Khung ${({"5min":"M5","15min":"M15","30min":"M30","1h":"H1","4h":"H4","1day":"D1"})[xauInterval]}`} />
-                  </div>
-                  {fxData.dca?.length > 0 ? (
-                    <div className="table-scroll">
-                      <table>
-                        <thead><tr><th>Mức DCA</th><th>Giá tham khảo</th><th>Khoảng cách</th></tr></thead>
-                        <tbody>{fxData.dca.map((level) => (
-                          <tr key={level.label}><td>{level.label}</td><td>${fmt(level.price, 2)}</td><td>{level.distanceAtr} × ATR</td></tr>
-                        ))}</tbody>
-                      </table>
-                    </div>
-                  ) : <p className="muted">Chưa đủ dữ liệu để tính ATR và các mức DCA.</p>}
-                  <h3>📚 Volume Profile</h3>
-                  {fxData.volumeProfile ? (
-                    <div className="metrics">
-                      <Metric label="POC" value={`$${fmt(fxData.volumeProfile.poc, 2)}`} sub="Mức giá có khối lượng lớn nhất" />
-                      <Metric label="VAH" value={`$${fmt(fxData.volumeProfile.vah, 2)}`} sub="Biên trên vùng giá trị" />
-                      <Metric label="VAL" value={`$${fmt(fxData.volumeProfile.val, 2)}`} sub="Biên dưới vùng giá trị" />
-                    </div>
-                  ) : (
-                    <p className="muted">Nguồn Twelve Data hiện không cung cấp volume đủ dùng cho Volume Profile ở khung này. Không hiển thị POC/VAH/VAL giả.</p>
-                  )}
-                </>
-              )}
               <PriceChart data={fxData.history} />
               <p className="muted">Nguồn: {fxData.source || "Yahoo Finance"}{fxSymbol === "XAUUSD" ? ` · Twelve Data XAU/USD · Khung ${({"5min":"M5","15min":"M15","30min":"M30","1h":"H1","4h":"H4","1day":"D1"})[xauInterval]}` : " · Dữ liệu có thể trễ tùy nhà cung cấp"}. Không tự đặt lệnh giao dịch.</p>
             </>
           )}
+        </section>
+      )}
+
+      {tab === "foreign" && (
+        <section className="panel">
+          <h2>🌍 Thống kê mua/bán khối ngoại</h2>
+          <p className="muted">Tra cứu theo mã. Ứng dụng không tự tạo số liệu khi nguồn miễn phí không cung cấp dữ liệu đáng tin cậy.</p>
+          <div className="form-grid">
+            <label>Mã cổ phiếu
+              <input value={symbol} onChange={(e) => setSymbol(e.target.value.toUpperCase())} placeholder="FPT" maxLength={12} />
+            </label>
+            <button className="primary action" disabled={loading === "foreign"} onClick={loadForeign}>
+              {loading === "foreign" ? "Đang kiểm tra..." : "🔎 TRA CỨU KHỐI NGOẠI"}
+            </button>
+          </div>
+          {foreignData && (
+            <>
+              <div className="metrics">
+                <Metric label="Khối lượng mua" value={fmt(foreignData.buyVolume, 0)} />
+                <Metric label="Khối lượng bán" value={fmt(foreignData.sellVolume, 0)} />
+                <Metric label="Mua/bán ròng" value={fmt(foreignData.netVolume, 0)} positive={foreignData.netVolume >= 0} />
+              </div>
+              <p className="muted">Phiên giao dịch: {foreignData.date || "Nguồn không cung cấp ngày"} · {foreignData.source}</p>
+              {(foreignData.buyValue != null || foreignData.sellValue != null || foreignData.netValue != null) && (
+                <div className="metrics">
+                  <Metric label="Giá trị mua" value={foreignData.buyValue == null ? "—" : fmt(foreignData.buyValue, 0)} />
+                  <Metric label="Giá trị bán" value={foreignData.sellValue == null ? "—" : fmt(foreignData.sellValue, 0)} />
+                  <Metric label="Giá trị ròng" value={foreignData.netValue == null ? "—" : fmt(foreignData.netValue, 0)} positive={foreignData.netValue == null ? undefined : foreignData.netValue >= 0} />
+                </div>
+              )}
+              <p className="muted">{foreignData.note}</p>
+            </>
+          )}
+          <div className="alert info">Nếu nguồn miễn phí không cung cấp lịch sử khối ngoại hoặc chặn truy cập, ứng dụng sẽ báo rõ thay vì hiển thị số liệu giả.</div>
+        </section>
+      )}
+
+      {tab === "dca" && (
+        <section className="panel">
+          <h2>🧮 Tính giá vốn trung bình — DCA (Dollar-Cost Averaging)</h2>
+          <p className="muted">Ghi lại từng lần mua cổ phiếu, vàng hoặc tài sản. Giá vốn được tính từ tổng tiền mua chia cho tổng số lượng, chưa bao gồm phí giao dịch và thuế.</p>
+          <div className="form-grid">
+            <label>Mã tài sản / tên danh mục
+              <input value={dcaAsset} onChange={(e) => setDcaAsset(e.target.value.toUpperCase())} placeholder="FPT, XAUUSD, BTC..." maxLength={20} />
+            </label>
+            <label>Đơn vị tiền tệ
+              <select value={dcaCurrency} onChange={(e) => setDcaCurrency(e.target.value)}>
+                <option value="VND">VND</option><option value="USD">USD</option>
+              </select>
+            </label>
+            <label>Giá hiện tại (không bắt buộc)
+              <input type="number" min="0" step="any" value={dcaCurrentPrice} onChange={(e) => setDcaCurrentPrice(e.target.value)} placeholder="Nhập giá để tính lãi/lỗ" />
+            </label>
+          </div>
+          <h3>Lịch sử mua</h3>
+          <div className="table-scroll"><table>
+            <thead><tr><th>Ngày mua</th><th>Khối lượng</th><th>Giá mua / đơn vị</th><th>Thành tiền</th><th></th></tr></thead>
+            <tbody>{dcaRowsInput.map((row) => {
+              const qty = Math.max(Number(row.quantity) || 0, 0);
+              const price = Math.max(Number(row.price) || 0, 0);
+              return <tr key={row.id}>
+                <td><input aria-label="Ngày mua" type="date" value={row.date} onChange={(e) => setDcaRowsInput(rows => rows.map(r => r.id === row.id ? { ...r, date: e.target.value } : r))} /></td>
+                <td><input aria-label="Khối lượng mua" type="number" min="0" step="any" value={row.quantity} onChange={(e) => setDcaRowsInput(rows => rows.map(r => r.id === row.id ? { ...r, quantity: e.target.value } : r))} placeholder="0" /></td>
+                <td><input aria-label="Giá mua" type="number" min="0" step="any" value={row.price} onChange={(e) => setDcaRowsInput(rows => rows.map(r => r.id === row.id ? { ...r, price: e.target.value } : r))} placeholder="0" /></td>
+                <td>{qty > 0 && price > 0 ? fmt(qty * price, 2) : "—"} {qty > 0 && price > 0 ? dcaCurrency : ""}</td>
+                <td><button className="secondary" disabled={dcaRowsInput.length === 1} onClick={() => setDcaRowsInput(rows => rows.filter(r => r.id !== row.id))}>Xóa</button></td>
+              </tr>;
+            })}</tbody>
+          </table></div>
+          <div className="button-row" style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 12 }}>
+            <button className="primary" onClick={() => { setDcaRowsInput(rows => [...rows, { id: nextDcaId, date: new Date().toISOString().slice(0, 10), quantity: "", price: "" }]); setNextDcaId(id => id + 1); }}>＋ Thêm lần mua</button>
+            <button className="secondary" onClick={() => { setDcaRowsInput([{ id: nextDcaId, date: new Date().toISOString().slice(0, 10), quantity: "", price: "" }]); setNextDcaId(id => id + 1); setDcaCurrentPrice(""); }}>Làm mới bảng</button>
+            <button className="secondary" disabled={!dcaValidRows.length} onClick={() => { const rows = [["Ma tai san", dcaAsset], ["Ngay mua", "Khoi luong", "Gia mua", "Thanh tien"], ...dcaValidRows.map(r => [r.date, r.quantity, r.price, r.quantity * r.price])]; const csv = "\uFEFF" + rows.map(row => row.map(v => `"${String(v ?? "").replaceAll('"', '""')}"`).join(",")).join("\n"); const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8;" })); const a = document.createElement("a"); a.href = url; a.download = `${dcaAsset || "dca"}_lich_su_mua.csv`; a.click(); URL.revokeObjectURL(url); }}>📥 Xuất CSV</button>
+          </div>
+          <h3>Tổng hợp danh mục {dcaAsset && `— ${dcaAsset}`}</h3>
+          <div className="metrics">
+            <Metric label="Tổng vốn đầu tư" value={`${fmt(dcaTotalCost, 2)} ${dcaCurrency}`} />
+            <Metric label="Tổng khối lượng" value={fmt(dcaTotalQuantity, 6)} />
+            <Metric label="Giá vốn trung bình" value={dcaAveragePrice == null ? "—" : `${fmt(dcaAveragePrice, 4)} ${dcaCurrency}`} />
+            <Metric label="Giá trị hiện tại" value={dcaMarketValue == null ? "Nhập giá hiện tại" : `${fmt(dcaMarketValue, 2)} ${dcaCurrency}`} />
+            <Metric label="Lãi / lỗ tạm tính" value={dcaProfit == null ? "—" : `${dcaProfit > 0 ? "+" : ""}${fmt(dcaProfit, 2)} ${dcaCurrency}`} positive={dcaProfit == null ? undefined : dcaProfit >= 0} />
+            <Metric label="Biến động so với vốn" value={dcaProfit == null || dcaTotalCost <= 0 ? "—" : `${fmt(dcaProfit / dcaTotalCost * 100)}%`} positive={dcaProfit == null ? undefined : dcaProfit >= 0} />
+          </div>
+          <div className="alert info" style={{ marginTop: 16 }}>Công thức: Tổng vốn = Σ (khối lượng × giá mua); giá vốn trung bình = tổng vốn ÷ tổng khối lượng. Chỉ tính các dòng có cả khối lượng và giá mua lớn hơn 0. Lãi/lỗ chưa tính phí, thuế và cổ tức.</div>
         </section>
       )}
 
@@ -517,73 +460,9 @@ export default function Home() {
           <h2>📈 Chứng chỉ quỹ</h2>
           <p className="muted">Tra cứu theo mã quỹ. Hệ thống ưu tiên Fmarket và chỉ chấp nhận mã khớp chính xác; CafeF là nguồn dự phòng. NAV quỹ mở không phải giá realtime, còn giá ETF trên sàn có thể khác NAV/CCQ.</p>
           <div className="form-grid">
-            <label className="fund-select-label">Mã chứng chỉ quỹ
-              <div className="fund-select">
-                <input
-                  value={fundDropdownOpen ? fundSearch : fundSymbol}
-                  onFocus={() => {
-                    setFundDropdownOpen(true);
-                    setFundSearch("");
-                  }}
-                  onChange={(e) => {
-                    setFundSearch(e.target.value.toUpperCase());
-                    setFundDropdownOpen(true);
-                    setFundData(null);
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === "Escape") setFundDropdownOpen(false);
-                    if (e.key === "Enter" && filteredFunds.length > 0) {
-                      e.preventDefault();
-                      setFundSymbol(filteredFunds[0][0]);
-                      setFundSearch("");
-                      setFundDropdownOpen(false);
-                      setFundData(null);
-                    }
-                  }}
-                  placeholder="Nhập mã hoặc tên chứng chỉ quỹ..."
-                  maxLength={30}
-                  autoComplete="off"
-                />
-                <button
-                  type="button"
-                  className="fund-select-toggle"
-                  aria-label="Mở danh sách chứng chỉ quỹ"
-                  onMouseDown={(e) => e.preventDefault()}
-                  onClick={() => {
-                    setFundDropdownOpen((open) => !open);
-                    setFundSearch("");
-                  }}
-                >▾</button>
-                {fundDropdownOpen && (
-                  <>
-                    <button
-                      type="button"
-                      className="fund-dropdown-backdrop"
-                      aria-label="Đóng danh sách mã quỹ"
-                      onClick={() => setFundDropdownOpen(false)}
-                    />
-                    <div className="fund-options">
-                      {filteredFunds.length > 0 ? filteredFunds.map(([code, name]) => (
-                        <button
-                          type="button"
-                          key={code}
-                          className={`fund-option ${fundSymbol === code ? "selected" : ""}`}
-                          onMouseDown={(e) => e.preventDefault()}
-                          onClick={() => {
-                            setFundSymbol(code);
-                            setFundSearch("");
-                            setFundDropdownOpen(false);
-                            setFundData(null);
-                          }}
-                        >
-                          <strong>{code}</strong>
-                          <span>{name}</span>
-                        </button>
-                      )) : <div className="fund-empty">Không tìm thấy mã quỹ phù hợp.</div>}
-                    </div>
-                  </>
-                )}
-              </div>
+            <label>Mã chứng chỉ quỹ
+              <input list="fund-codes" value={fundSymbol} onChange={(e) => { setFundSymbol(e.target.value.toUpperCase().trim()); setFundData(null); }} placeholder="VESAF, E1VFVN30..." maxLength={15} />
+              <datalist id="fund-codes">{FUNDS.map(([code, name]) => <option key={code} value={code}>{name}</option>)}</datalist>
             </label>
             <button className="primary action" disabled={loading === "fund" || !/^[A-Z0-9-]{2,15}$/.test(fundSymbol)} onClick={loadFund}>
               {loading === "fund" ? "Đang tải..." : "🔎 TRA CỨU NAV"}
