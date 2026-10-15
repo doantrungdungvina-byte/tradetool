@@ -70,6 +70,12 @@ const FUNDS = [
   ["VFF", "VFF"],
 ];
 
+const formatMoneyInput = (value) => {
+  const digits = String(value ?? "").replace(/\D/g, "");
+  return digits ? Number(digits).toLocaleString("vi-VN") : "";
+};
+const parseMoneyInput = (value) => String(value ?? "").replace(/\D/g, "");
+
 const fmt = (n, digits = 2) =>
   n == null || !Number.isFinite(Number(n))
     ? "—"
@@ -108,6 +114,47 @@ function PriceChart({ data }) {
       </svg>
       <div className="chart-foot"><span>{data[0]?.date}</span><span>{data[data.length - 1]?.date}</span></div>
     </div>
+  );
+}
+
+function ShareApp() {
+  const [copied, setCopied] = useState(false);
+  const appUrl = "https://tradetool-delta.vercel.app";
+  const shareText = "Trading Tools — công cụ theo dõi thị trường, phân tích kỹ thuật, DCA và tính lãi kép.";
+  const zaloUrl = `https://zalo.me/share?url=${encodeURIComponent(appUrl)}&title=${encodeURIComponent(shareText)}`;
+  const facebookUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(appUrl)}`;
+  async function copyLink() {
+    try {
+      if (navigator.clipboard && window.isSecureContext) await navigator.clipboard.writeText(appUrl);
+      else {
+        const field = document.createElement("textarea");
+        field.value = appUrl; field.style.position = "fixed"; field.style.opacity = "0";
+        document.body.appendChild(field); field.select();
+        const ok = document.execCommand("copy"); document.body.removeChild(field);
+        if (!ok) throw new Error("copy failed");
+      }
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 2200);
+    } catch {
+      window.prompt("Sao chép liên kết ứng dụng:", appUrl);
+    }
+  }
+  return (
+    <section className="share-app" aria-label="Chia sẻ ứng dụng">
+      <div className="share-app-copy">
+        <span className="share-app-icon" aria-hidden="true">↗</span>
+        <div><h3>Chia sẻ Trading Tools</h3><p>Gửi ứng dụng cho bạn bè qua Zalo hoặc Facebook.</p></div>
+      </div>
+      <div className="share-app-actions">
+        <button type="button" className="share-btn share-copy" onClick={copyLink}>{copied ? "✓ Đã sao chép link" : "🔗 Sao chép link"}</button>
+        <a className="share-btn share-zalo" href={zaloUrl} target="_blank" rel="noopener noreferrer">Zalo ↗</a>
+        <a className="share-btn share-facebook" href={facebookUrl} target="_blank" rel="noopener noreferrer">f Facebook ↗</a>
+        <button type="button" className="share-btn share-native" onClick={async () => {
+          if (navigator.share) { try { await navigator.share({ title: "Trading Tools", text: shareText, url: appUrl }); } catch {} }
+          else await copyLink();
+        }}>↗ Chia sẻ</button>
+      </div>
+    </section>
   );
 }
 
@@ -266,7 +313,7 @@ export default function Home() {
     const contribution = Math.max(Number(compoundContribution) || 0, 0);
     const annualReturn = Math.max(Number(compoundReturn) || 0, 0) / 100;
     const years = Math.min(Math.max(Math.floor(Number(compoundYears) || 0), 0), 100);
-    const periodsPerYear = compoundFrequency === "quarterly" ? 4 : 12;
+    const periodsPerYear = compoundFrequency === "yearly" ? 1 : compoundFrequency === "semiannual" ? 2 : compoundFrequency === "quarterly" ? 4 : 12;
     const rate = Math.pow(1 + annualReturn, 1 / periodsPerYear) - 1;
     let balance = initial;
     let totalContributed = initial;
@@ -521,12 +568,12 @@ export default function Home() {
           <h2>📈 Lãi kép &amp; Hoạch định mục tiêu tự do tài chính</h2>
           <p className="muted">Mô phỏng tích lũy dài hạn với lợi nhuận được tái đầu tư. Đây là kịch bản giả định, không phải cam kết lợi nhuận.</p>
           <div className="form-grid compound-grid">
-            <label>Vốn ban đầu (VND)<input type="number" min="0" step="any" value={compoundInitial} onChange={(e) => setCompoundInitial(e.target.value)} /></label>
-            <label>Đầu tư thêm mỗi kỳ (VND)<input type="number" min="0" step="any" value={compoundContribution} onChange={(e) => setCompoundContribution(e.target.value)} /></label>
-            <label>Tần suất đầu tư<select value={compoundFrequency} onChange={(e) => setCompoundFrequency(e.target.value)}><option value="monthly">Hàng tháng</option><option value="quarterly">Hàng quý</option></select></label>
+            <label>Vốn ban đầu (VND)<input type="text" inputMode="numeric" value={formatMoneyInput(compoundInitial)} onChange={(e) => setCompoundInitial(parseMoneyInput(e.target.value))} /></label>
+            <label>Đầu tư thêm mỗi kỳ (VND)<input type="text" inputMode="numeric" value={formatMoneyInput(compoundContribution)} onChange={(e) => setCompoundContribution(parseMoneyInput(e.target.value))} /></label>
+            <label>Tần suất đầu tư<select value={compoundFrequency} onChange={(e) => setCompoundFrequency(e.target.value)}><option value="monthly">Hàng tháng</option><option value="quarterly">Hàng quý (3 tháng)</option><option value="semiannual">6 tháng một lần</option><option value="yearly">1 năm một lần</option></select></label>
             <label>Lợi nhuận kỳ vọng năm (%)<input type="number" min="0" max="100" step="0.1" value={compoundReturn} onChange={(e) => setCompoundReturn(e.target.value)} /></label>
             <label>Thời gian đầu tư (năm)<input type="number" min="0" max="100" step="1" value={compoundYears} onChange={(e) => setCompoundYears(e.target.value)} /></label>
-            <label>Mục tiêu thu nhập thụ động/tháng (VND)<input type="number" min="0" step="any" value={compoundMonthlyGoal} onChange={(e) => setCompoundMonthlyGoal(e.target.value)} /></label>
+            <label>Mục tiêu thu nhập thụ động/tháng (VND)<input type="text" inputMode="numeric" value={formatMoneyInput(compoundMonthlyGoal)} onChange={(e) => setCompoundMonthlyGoal(parseMoneyInput(e.target.value))} /></label>
           </div>
           <div className="metrics">
             <Metric label="Tổng tài sản dự kiến" value={`${fmt(compoundPlan.balance, 0)} VND`} />
@@ -536,7 +583,7 @@ export default function Home() {
           </div>
           <div className="alert info" style={{ marginTop: 12 }}>
             {compoundPlan.targetCapital <= 0 ? "Nhập mục tiêu thu nhập thụ động để ước tính vốn cần có." : compoundPlan.reachedYear != null ? `Theo giả định hiện tại, tài sản có thể đạt vốn mục tiêu vào khoảng năm thứ ${compoundPlan.reachedYear}.` : `Trong ${compoundPlan.years} năm mô phỏng, tài sản chưa đạt vốn mục tiêu. Hãy thử điều chỉnh mức góp, thời gian hoặc giả định lợi nhuận.`}
-            <br />Tần suất: {compoundPlan.periodsPerYear === 12 ? "hàng tháng" : "hàng quý"}. Lãi suất mỗi kỳ được quy đổi từ lợi nhuận năm; tiền góp được thêm vào cuối mỗi kỳ. Chưa tính lạm phát, phí, thuế và biến động lợi nhuận thực tế.
+            <br />Tần suất: {compoundPlan.periodsPerYear === 12 ? "hàng tháng" : compoundPlan.periodsPerYear === 4 ? "hàng quý" : compoundPlan.periodsPerYear === 2 ? "6 tháng một lần" : "1 năm một lần"}. Lãi suất mỗi kỳ được quy đổi từ lợi nhuận năm; tiền góp được thêm vào cuối mỗi kỳ. Chưa tính lạm phát, phí, thuế và biến động lợi nhuận thực tế.
           </div>
           <h3>Lộ trình tài sản theo năm</h3>
           {compoundPlan.timeline.length ? <div className="table-scroll"><table><thead><tr><th>Năm</th><th>Tổng tiền tự góp</th><th>Lợi nhuận tích lũy</th><th>Tổng tài sản dự kiến</th></tr></thead><tbody>{compoundPlan.timeline.map((row) => <tr key={row.year}><td>{row.year}</td><td>{fmt(row.contributed, 0)} VND</td><td>{fmt(row.profit, 0)} VND</td><td><strong>{fmt(row.balance, 0)} VND</strong></td></tr>)}</tbody></table></div> : <p className="muted">Nhập thời gian đầu tư lớn hơn 0 để xem bảng dự phóng.</p>}
@@ -583,6 +630,7 @@ export default function Home() {
       )}
 
       <DonationSupport />
+      <ShareApp />
 
       <footer className="footer">
         <span>Trading Tools</span>
