@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import DonationSupport from "./components/DonationSupport";
 
 const TABS = [
   { id: "stock", label: "VN STOCK" },
@@ -502,6 +503,8 @@ export default function Home() {
           </div>
         </section>
       )}
+
+      <DonationSupport />
 
       <footer className="footer">
         <span>Trading Tools</span>
