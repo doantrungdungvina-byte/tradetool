@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 
 const TABS = [
   { id: "stock", label: "🇻🇳 VN STOCK" },
-  { id: "forex", label: "🌎 FOREX / XAUUSD" },
+  { id: "forex", label: "🌎 FX" },
   { id: "funds", label: "📈 CHỨNG CHỈ QUỸ" },
 ];
 
