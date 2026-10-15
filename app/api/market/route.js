@@ -120,23 +120,39 @@ export async function GET(request) {
     return NextResponse.json({ error: "Loại tài sản không hợp lệ." }, { status: 400 });
   }
 
-  const yahooSymbol = kind === "forex" || kind === "crypto"
-    ? (FX[symbol] || symbol)
-    : `${symbol}.VN`;
-  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(yahooSymbol)}?range=2y&interval=1d&events=history`;
+  // Yahoo thường dùng hậu tố .VN cho cổ phiếu Việt Nam, nhưng không có đủ mã
+  // HNX/UPCoM. Thử các biến thể lần lượt để một mã không được hỗ trợ không dừng ngay.
+  const yahooSymbols = kind === "forex" || kind === "crypto"
+    ? [FX[symbol] || symbol]
+    : [`${symbol}.VN`, `${symbol}.HN`, `${symbol}.UPCOM`, symbol];
+  let yahooSymbol = yahooSymbols[0];
+  let result = null;
+  let lastHttpStatus = null;
 
   try {
-    const [response] = await Promise.all([
-      fetch(url, {
-        headers: { "User-Agent": "Mozilla/5.0 TradingTools/1.0", Accept: "application/json" },
-        next: { revalidate: 300 },
-      }),
-    ]);
-    if (!response.ok) throw new Error(`Yahoo Finance trả HTTP ${response.status} cho ${yahooSymbol}.`);
-
-    const payload = await response.json();
-    const result = payload?.chart?.result?.[0];
-    if (!result?.timestamp?.length) throw new Error(`Không có lịch sử giá cho ${symbol}. Thử kiểm tra mã hoặc nguồn dữ liệu.`);
+    for (const candidate of yahooSymbols) {
+      const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(candidate)}?range=2y&interval=1d&events=history`;
+      try {
+        const response = await fetch(url, {
+          headers: { "User-Agent": "Mozilla/5.0 TradingTools/1.0", Accept: "application/json" },
+          next: { revalidate: 300 },
+        });
+        lastHttpStatus = response.status;
+        if (!response.ok) continue;
+        const payload = await response.json();
+        const candidateResult = payload?.chart?.result?.[0];
+        if (candidateResult?.timestamp?.length) {
+          yahooSymbol = candidate;
+          result = candidateResult;
+          break;
+        }
+      } catch {
+        // Try the next symbol format if a candidate is unavailable.
+      }
+    }
+    if (!result) {
+      throw new Error(`Yahoo Finance không có dữ liệu cho ${symbol} (đã thử ${yahooSymbols.join(", ")}${lastHttpStatus ? `; HTTP cuối: ${lastHttpStatus}` : ""}). Mã có thể thuộc HNX/UPCoM nhưng chưa được Yahoo hỗ trợ; cần dùng nguồn dữ liệu khác.`);
+    }
 
     const q = result.indicators?.quote?.[0] || {};
     const rows = result.timestamp.map((time, i) => ({

@@ -15,19 +15,34 @@ export async function GET(request) {
     return NextResponse.json({ error: "Khoảng thời gian không hợp lệ." }, { status: 400 });
   }
 
-  const yahooSymbol = `${symbol}.VN`;
-  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(yahooSymbol)}?range=${range}&interval=1d&events=history`;
+  const yahooSymbols = [`${symbol}.VN`, `${symbol}.HN`, `${symbol}.UPCOM`, symbol];
+  let yahooSymbol = yahooSymbols[0];
+  let result = null;
+  let lastHttpStatus = null;
   try {
-    const response = await fetch(url, {
-      headers: { "User-Agent": "Mozilla/5.0 TradingTools/1.0", Accept: "application/json" },
-      next: { revalidate: 300 },
-    });
-    if (!response.ok) throw new Error(`Nguồn dữ liệu trả HTTP ${response.status}.`);
-    const payload = await response.json();
-    const result = payload?.chart?.result?.[0];
+    for (const candidate of yahooSymbols) {
+      const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(candidate)}?range=${range}&interval=1d&events=history`;
+      try {
+        const response = await fetch(url, {
+          headers: { "User-Agent": "Mozilla/5.0 TradingTools/1.0", Accept: "application/json" },
+          next: { revalidate: 300 },
+        });
+        lastHttpStatus = response.status;
+        if (!response.ok) continue;
+        const payload = await response.json();
+        const candidateResult = payload?.chart?.result?.[0];
+        if (candidateResult?.timestamp?.length && candidateResult?.indicators?.quote?.[0]) {
+          yahooSymbol = candidate;
+          result = candidateResult;
+          break;
+        }
+      } catch {
+        // Continue with the next possible ticker format.
+      }
+    }
     const quote = result?.indicators?.quote?.[0];
     if (!result?.timestamp?.length || !quote) {
-      throw new Error(`Không tìm thấy dữ liệu khối lượng cho mã ${symbol}.`);
+      throw new Error(`Yahoo Finance không có dữ liệu khối lượng cho ${symbol} (đã thử ${yahooSymbols.join(", ")}${lastHttpStatus ? `; HTTP cuối: ${lastHttpStatus}` : ""}). Có thể mã HNX/UPCoM này chưa được Yahoo hỗ trợ.`);
     }
     const rows = result.timestamp.map((ts, i) => ({
       date: new Date(ts * 1000).toISOString().slice(0, 10),
