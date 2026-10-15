@@ -242,7 +242,12 @@ export default function Home() {
   const dcaNowPrice = Number(dcaCurrentPrice) > 0 ? Number(dcaCurrentPrice) : null;
   const dcaMarketValue = dcaNowPrice != null ? dcaNowPrice * dcaTotalQuantity : null;
   const dcaProfit = dcaMarketValue != null ? dcaMarketValue - dcaTotalCost : null;
-  const dcaTarget = Number(dcaTargetPrice) > 0 ? Number(dcaTargetPrice) : null;
+  // If the user does not enter a target, estimate a practical recovery target
+  // halfway between current price and the average cost. They can override it.
+  const dcaTargetInput = Number(dcaTargetPrice) > 0 ? Number(dcaTargetPrice) : null;
+  const dcaTarget = dcaTargetInput ?? (dcaNowPrice != null && dcaAveragePrice != null && dcaNowPrice < dcaAveragePrice
+    ? (dcaNowPrice + dcaAveragePrice) / 2
+    : null);
   const dcaEstimatedBuyQty = dcaProfit != null && dcaProfit < 0 && dcaTotalQuantity > 0 && dcaNowPrice != null && dcaTarget != null && dcaTarget > dcaNowPrice && dcaTarget < dcaAveragePrice
     ? Math.ceil((dcaTotalCost - dcaTarget * dcaTotalQuantity) / (dcaTarget - dcaNowPrice))
     : null;
@@ -408,8 +413,8 @@ export default function Home() {
             <label>Giá thị trường hiện tại
               <input type="number" min="0" step="any" value={dcaCurrentPrice} onChange={(e) => setDcaCurrentPrice(e.target.value)} placeholder="Bấm cập nhật để lấy giá mới nhất" />
             </label>
-            <label>Giá mục tiêu hồi phục để hòa vốn
-              <input type="number" min="0" step="any" value={dcaTargetPrice} onChange={(e) => setDcaTargetPrice(e.target.value)} placeholder="Nhập giá kỳ vọng hồi phục" />
+            <label>Giá mục tiêu hồi phục (tùy chọn)
+              <input type="number" min="0" step="any" value={dcaTargetPrice} onChange={(e) => setDcaTargetPrice(e.target.value)} placeholder="Để trống để tự ước tính" />
             </label>
             <button className="primary action" disabled={dcaPriceLoading || !dcaAsset.trim()} onClick={loadDcaLatestPrice}>
               {dcaPriceLoading ? "Đang cập nhật giá..." : "↻ CẬP NHẬT GIÁ MỚI NHẤT"}
@@ -446,10 +451,14 @@ export default function Home() {
             <Metric label="Biến động so với vốn" value={dcaProfit == null || dcaTotalCost <= 0 ? "—" : `${fmt(dcaProfit / dcaTotalCost * 100)}%`} positive={dcaProfit == null ? undefined : dcaProfit >= 0} />
           </div>
           {dcaProfit != null && dcaProfit < 0 && (
-            <div className="metrics" style={{ marginTop: 12 }}>
-              <Metric label="Số lượng mua ước tính để hòa vốn" value={dcaEstimatedBuyQty == null ? "Nhập giá mục tiêu cao hơn giá hiện tại và thấp hơn giá vốn TB" : fmt(dcaEstimatedBuyQty, 6)} />
-              <Metric label="Vốn mua bổ sung ước tính" value={dcaEstimatedBuyCost == null ? "—" : `${fmt(dcaEstimatedBuyCost)} ${dcaCurrency}`} />
-            </div>
+            <>
+              <div className="metrics" style={{ marginTop: 12 }}>
+                <Metric label="Giá mục tiêu dùng để tính" value={dcaTarget == null ? "—" : `${fmt(dcaTarget, 4)} ${dcaCurrency}`} sub={dcaTargetInput == null ? "Tự ước tính: trung điểm giữa giá hiện tại và giá vốn TB" : "Theo giá mục tiêu bạn nhập"} />
+                <Metric label="Số lượng mua thêm ước tính" value={dcaEstimatedBuyQty == null ? "Giá mục tiêu phải cao hơn giá hiện tại và thấp hơn giá vốn TB" : fmt(dcaEstimatedBuyQty, 6)} />
+                <Metric label="Vốn mua bổ sung ước tính" value={dcaEstimatedBuyCost == null ? "—" : `${fmt(dcaEstimatedBuyCost)} ${dcaCurrency}`} />
+              </div>
+              <p className="muted">Cách tính: mua thêm tại giá hiện tại để giá vốn bình quân mới bằng giá mục tiêu. Nếu để trống giá mục tiêu, hệ thống tự chọn trung điểm giữa giá hiện tại và giá vốn bình quân. Mua thêm tại đúng giá hiện tại không thể xóa khoản lỗ ngay lập tức; cần giá thị trường hồi phục đến giá mục tiêu. Chưa tính phí và thuế.</p>
+            </>
           )}
           <div className="alert info" style={{ marginTop: 16 }}>Công thức: Tổng vốn = Σ (khối lượng × giá mua); giá vốn trung bình = tổng vốn ÷ tổng khối lượng. Chỉ tính các dòng có cả khối lượng và giá mua lớn hơn 0. Lãi/lỗ chưa tính phí, thuế và cổ tức.</div>
         </section>
