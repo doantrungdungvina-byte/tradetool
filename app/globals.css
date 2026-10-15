@@ -68,3 +68,18 @@ a{color:#1c62c5;text-decoration:none}a:hover{text-decoration:underline}
 
 /* Chia sẻ ứng dụng ở cuối trang */
 .share-app{margin:18px 0 8px;padding:18px 20px;border:1px solid var(--line);border-radius:14px;background:linear-gradient(135deg,#fff,#f7faff);display:flex;align-items:center;justify-content:space-between;gap:18px;flex-wrap:wrap}.share-app-copy{display:flex;align-items:center;gap:12px}.share-app-icon{display:grid;place-items:center;width:42px;height:42px;border-radius:12px;background:#fff0f0;color:#ff4b50;font-size:28px;font-weight:800}.share-app h3{margin:0 0 4px;font-size:16px}.share-app p{margin:0;color:var(--muted);font-size:12px;line-height:1.5}.share-app-actions{display:flex;gap:9px;align-items:center;flex-wrap:wrap}.share-btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:39px;padding:9px 13px;border:1px solid #dce3ee;border-radius:9px;background:#fff;color:#183153;font:600 13px inherit;text-decoration:none;cursor:pointer;white-space:nowrap}.share-btn:hover{text-decoration:none;filter:brightness(.97);transform:translateY(-1px)}.share-zalo{background:#e8f3ff;border-color:#b9dcff;color:#0866c6}.share-facebook{background:#edf2ff;border-color:#cbd6ff;color:#2454ad}.share-copy{background:#fff5f5;border-color:#ffd3d3;color:#c7373c}.share-native{background:#f4f6fa}@media(max-width:650px){.share-app{padding:15px;align-items:stretch}.share-app-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}.share-btn{width:100%;box-sizing:border-box;padding:9px 7px;font-size:12px}}
+
+/* Searchable fund-code dropdown */
+.fund-code-label{position:relative;display:block}
+.fund-code-label>input{padding-right:42px}
+.fund-dropdown-toggle{position:absolute;right:8px;top:29px;width:30px;height:34px;border:0;background:transparent;color:var(--ink);cursor:pointer;border-radius:6px}
+.fund-dropdown-toggle:hover{background:#edf1f7}
+.fund-code-menu{position:absolute;z-index:50;left:0;right:0;top:calc(100% + 4px);background:#fff;border:1px solid var(--line);border-radius:12px;box-shadow:0 12px 32px rgba(21,34,59,.16);overflow:hidden}
+.fund-code-menu-title{padding:11px 14px;font-size:12px;color:var(--muted);border-bottom:1px solid var(--line);background:#f8faff}
+.fund-code-menu-list{max-height:280px;overflow:auto}
+.fund-code-option{display:flex;align-items:center;gap:12px;width:100%;padding:10px 14px;text-align:left;border:0;border-bottom:1px solid #f0f2f6;background:#fff;color:var(--ink);cursor:pointer}
+.fund-code-option strong{min-width:95px;font-size:13px}
+.fund-code-option span{font-size:12px;color:var(--muted)}
+.fund-code-option:hover,.fund-code-option.selected{background:#edf4ff}
+.fund-code-empty{padding:14px;font-size:12px;color:var(--muted)}
+.fund-code-close{width:100%;padding:9px;border:0;border-top:1px solid var(--line);background:#f8faff;color:var(--ink);cursor:pointer;font-size:12px}

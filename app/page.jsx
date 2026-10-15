@@ -165,6 +165,7 @@ export default function Home() {
   const [xauInterval, setXauInterval] = useState("5min");
   const [capital, setCapital] = useState("50000000");
   const [fundSymbol, setFundSymbol] = useState("EVESG");
+  const [fundMenuOpen, setFundMenuOpen] = useState(false);
   const [marketData, setMarketData] = useState(null);
   const [fxData, setFxData] = useState(null);
   const [fundData, setFundData] = useState(null);
@@ -595,9 +596,32 @@ export default function Home() {
           <h2>📈 Chứng chỉ quỹ</h2>
           <p className="muted">Tra cứu theo mã quỹ. Hệ thống ưu tiên Fmarket và chỉ chấp nhận mã khớp chính xác; CafeF là nguồn dự phòng. NAV quỹ mở không phải giá realtime, còn giá ETF trên sàn có thể khác NAV/CCQ.</p>
           <div className="form-grid">
-            <label>Mã chứng chỉ quỹ
-              <input list="fund-codes" value={fundSymbol} onChange={(e) => { setFundSymbol(e.target.value.toUpperCase().trim()); setFundData(null); }} placeholder="VESAF, E1VFVN30..." maxLength={15} />
-              <datalist id="fund-codes">{FUNDS.map(([code, name]) => <option key={code} value={code}>{name}</option>)}</datalist>
+            <label className="fund-code-label">Mã chứng chỉ quỹ
+              <input
+                value={fundSymbol}
+                onFocus={() => setFundMenuOpen(true)}
+                onChange={(e) => { setFundSymbol(e.target.value.toUpperCase().trim()); setFundData(null); setFundMenuOpen(true); }}
+                onKeyDown={(e) => { if (e.key === "Escape") setFundMenuOpen(false); if (e.key === "Enter") { const match = FUNDS.find(([code]) => code === fundSymbol); if (match) { setFundSymbol(match[0]); setFundMenuOpen(false); } } }}
+                placeholder="Tìm hoặc nhập mã quỹ..."
+                maxLength={15}
+                aria-expanded={fundMenuOpen}
+                aria-controls="fund-codes-menu"
+              />
+              <button type="button" className="fund-dropdown-toggle" aria-label="Mở danh sách mã quỹ" onClick={() => setFundMenuOpen((open) => !open)}>▾</button>
+              {fundMenuOpen && (
+                <div id="fund-codes-menu" className="fund-code-menu">
+                  <div className="fund-code-menu-title">Danh sách mã quỹ ({FUNDS.length})</div>
+                  <div className="fund-code-menu-list">
+                    {FUNDS.filter(([code, name]) => !fundSymbol || code.toLowerCase().includes(fundSymbol.toLowerCase()) || name.toLowerCase().includes(fundSymbol.toLowerCase())).map(([code, name]) => (
+                      <button type="button" key={code} className={`fund-code-option${fundSymbol === code ? " selected" : ""}`} onMouseDown={(e) => e.preventDefault()} onClick={() => { setFundSymbol(code); setFundData(null); setFundMenuOpen(false); }}>
+                        <strong>{code}</strong><span>{name.replace(`${code} — `, "")}</span>
+                      </button>
+                    ))}
+                    {FUNDS.filter(([code, name]) => !fundSymbol || code.toLowerCase().includes(fundSymbol.toLowerCase()) || name.toLowerCase().includes(fundSymbol.toLowerCase())).length === 0 && <div className="fund-code-empty">Không có mã khớp. Bạn vẫn có thể nhập mã mới để tra cứu.</div>}
+                  </div>
+                  <button type="button" className="fund-code-close" onClick={() => setFundMenuOpen(false)}>Đóng danh sách</button>
+                </div>
+              )}
             </label>
             <button className="primary action" disabled={loading === "fund" || !/^[A-Z0-9-]{2,15}$/.test(fundSymbol)} onClick={loadFund}>
               {loading === "fund" ? "Đang tải..." : "🔎 TRA CỨU NAV"}
