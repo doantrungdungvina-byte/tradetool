@@ -39,3 +39,11 @@ Replace the URL with your repository URL. If Git is already initialized, skip `g
 ## Nguồn dữ liệu dự phòng HNX/UPCoM
 
 Khi Yahoo Finance không có mã, `/api/market` và `/api/stock-volume` sẽ gọi hàm Python `/api/vnstock` (VCI, sau đó KBS). Vercel cần cài các phụ thuộc trong `requirements.txt`. Sau khi deploy, thử `/api/vnstock?symbol=IDC` để kiểm tra riêng nguồn Python.
+
+
+## Fix build Python/Vnstock on Vercel
+
+- Keep `requirements.txt` at the project root.
+- `.python-version` pins Python 3.11 for the Vnstock fallback.
+- If `pyproject.toml` contains `tool.uv.environments` with `sys_platform == 'win32'`, remove that Windows-only split; Vercel builds on Linux.
+- Redeploy and inspect Python dependency resolution logs.
