@@ -3,8 +3,18 @@
 import { useMemo, useState } from "react";
 import DonationSupport from "./components/DonationSupport";
 
+function translateTrend(value) {
+  const map = { UP: "TĂNG", DOWN: "GIẢM", SIDEWAY: "ĐI NGANG", BULLISH: "XU HƯỚNG TĂNG", BEARISH: "XU HƯỚNG GIẢM", NEUTRAL: "TRUNG TÍNH" };
+  return map[String(value || "").toUpperCase()] || value || "Chưa đủ dữ liệu";
+}
+
+function translateAction(value) {
+  const map = { BUY: "MUA", SELL: "BÁN", HOLD: "GIỮ", WATCH: "THEO DÕI", STRONG_BUY: "MUA MẠNH", STRONG_SELL: "BÁN MẠNH" };
+  return map[String(value || "").toUpperCase()] || value || "Chưa đủ dữ liệu";
+}
+
 const TABS = [
-  { id: "stock", label: "VN STOCK" },
+  { id: "stock", label: "CỔ PHIẾU VN" },
   { id: "forex", label: "🌎 FX" },
   { id: "funds", label: "📈 CHỨNG CHỈ QUỸ" },
   { id: "dca", label: "🧮 DCA" },
@@ -405,7 +415,7 @@ export default function Home() {
         <div className="brand-mark">↗</div>
         <div>
           <h1>Trading Tools</h1>
-          <p>VN Stock • Forex / XAUUSD • Technical Analysis • DCA • Lãi kép</p>
+          <p>Cổ phiếu Việt Nam • Forex / XAUUSD • Phân tích kỹ thuật • DCA • Lãi kép</p>
         </div>
       </header>
 
@@ -421,7 +431,7 @@ export default function Home() {
 
       {tab === "stock" && (
         <section className="panel">
-          <h2>🇻🇳 Phân tích cổ phiếu Việt Nam — REVERSAL → Điểm mua &amp; DCA</h2>
+          <h2>🇻🇳 Phân tích cổ phiếu Việt Nam — ĐẢO CHIỀU → Điểm mua &amp; DCA</h2>
           <div className="form-grid stock-grid">
             <label>Mã cổ phiếu
               <input value={symbol} onChange={(e) => setSymbol(e.target.value.toUpperCase())} placeholder="FPT" maxLength={12} />
@@ -448,16 +458,16 @@ export default function Home() {
               <p className="muted">Mã: <strong>{technicalData.ticker}</strong> · Nguồn: {technicalData.source} · Cập nhật: {new Date(technicalData.updatedAt).toLocaleString("vi-VN")}</p>
               <div className="metrics" style={{ gridTemplateColumns: "repeat(3,minmax(0,1fr))" }}>
                 <Metric label={technicalData.name || technicalData.symbol} value={`${fmt(technicalData.price)} đ`} sub={`${technicalData.changePct > 0 ? "+" : ""}${fmt(technicalData.changePct)}% hôm nay`} positive={technicalData.changePct == null ? undefined : technicalData.changePct >= 0} />
-                <Metric label="Technical Score" value={`${technicalData.technicalScore}/100`} sub={`Trend: ${technicalData.dailyScenario.primary}`} />
-                <Metric label="Action" value={technicalData.action} sub={`RSI: ${fmt(technicalData.rsi)} · ${technicalData.rsi >= 70 ? "QUÁ MUA" : technicalData.rsi <= 30 ? "QUÁ BÁN" : "NEUTRAL"}`} positive={technicalData.action === "BUY" ? true : technicalData.action === "SELL" ? false : undefined} />
+                <Metric label="Điểm kỹ thuật" value={`${technicalData.technicalScore}/100`} sub={`Xu hướng: ${translateTrend(technicalData.dailyScenario.primary)}`} />
+                <Metric label="Đánh giá tín hiệu" value={translateAction(technicalData.action)} sub={`RSI: ${fmt(technicalData.rsi)} · ${technicalData.rsi >= 70 ? "QUÁ MUA" : technicalData.rsi <= 30 ? "QUÁ BÁN" : "TRUNG TÍNH"}`} positive={technicalData.action === "BUY" ? true : technicalData.action === "SELL" ? false : undefined} />
               </div>
               <div className="metrics" style={{ gridTemplateColumns: "repeat(2,minmax(0,1fr))" }}>
-                {[{label:"Kịch bản D1 · Daily",data:technicalData.dailyScenario},{label:"Kịch bản W1 · Weekly",data:technicalData.weeklyScenario}].map((sc) => <div className="metric" key={sc.label}>
-                  <div className="metric-label">{sc.label}</div><div className="metric-value">{sc.data.primary}</div>
+                {[{label:"Kịch bản D1 · Hằng ngày",data:technicalData.dailyScenario},{label:"Kịch bản W1 · Hằng tuần",data:technicalData.weeklyScenario}].map((sc) => <div className="metric" key={sc.label}>
+                  <div className="metric-label">{sc.label}</div><div className="metric-value">{translateTrend(sc.data.primary)}</div>
                   <div style={{display:"grid",gridTemplateColumns:"repeat(3,minmax(0,1fr))",gap:8,marginTop:10}}>
-                    <div><strong style={{color:"#21c77a"}}>{fmt(sc.data.up,1)}%</strong><div className="metric-sub">UP</div></div>
-                    <div><strong style={{color:"#ff5964"}}>{fmt(sc.data.down,1)}%</strong><div className="metric-sub">DOWN</div></div>
-                    <div><strong style={{color:"#e7b44c"}}>{fmt(sc.data.sideways,1)}%</strong><div className="metric-sub">SIDEWAY</div></div>
+                    <div><strong style={{color:"#21c77a"}}>{fmt(sc.data.up,1)}%</strong><div className="metric-sub">TĂNG</div></div>
+                    <div><strong style={{color:"#ff5964"}}>{fmt(sc.data.down,1)}%</strong><div className="metric-sub">GIẢM</div></div>
+                    <div><strong style={{color:"#e7b44c"}}>{fmt(sc.data.sideways,1)}%</strong><div className="metric-sub">ĐI NGANG</div></div>
                   </div>
                   <div className="metric-sub" style={{marginTop:8}}>{sc.data.note}</div>
                 </div>)}
@@ -468,7 +478,7 @@ export default function Home() {
                 <Metric label="EMA 50 · Xu hướng" value={fmt(technicalData.ema50)} />
                 <Metric label="EMA 200 · Dài hạn" value={fmt(technicalData.ema200)} />
                 <Metric label="RSI 14" value={fmt(technicalData.rsi)} sub={technicalData.rsi >= 70 ? "Quá mua" : technicalData.rsi <= 30 ? "Quá bán" : "Trung tính"} />
-                <Metric label="MACD" value={fmt(technicalData.macd)} sub={technicalData.macd > technicalData.macdSignal ? "BUY" : technicalData.macd < technicalData.macdSignal ? "SELL" : "NEUTRAL"} />
+                <Metric label="MACD" value={fmt(technicalData.macd)} sub={technicalData.macd > technicalData.macdSignal ? "MUA" : technicalData.macd < technicalData.macdSignal ? "BÁN" : "TRUNG TÍNH"} />
                 <Metric label="Khối lượng gần nhất" value={technicalData.volume == null ? "—" : `${fmt(technicalData.volume,0)} cp`} />
                 <Metric label="KLGD / TB10" value={technicalData.volumeRatio == null ? "—" : `${fmt(technicalData.volumeRatio,2)}x`} sub={technicalData.volumeRatio >= 1.5 ? "Thanh khoản tăng mạnh" : "So với trung bình 10 phiên"} />
                 <Metric label="ATR" value={fmt(technicalData.atr)} />
@@ -482,13 +492,13 @@ export default function Home() {
               <div className="table-scroll"><table>
                 <thead><tr><th>Nhóm</th><th>Chỉ báo</th><th>Tín hiệu</th><th>Giải thích</th></tr></thead>
                 <tbody>
-                  <tr><td>Trend</td><td>EMA 9/21/50/200</td><td>{technicalData.dailyScenario.primary}</td><td>So sánh thứ tự các EMA</td></tr>
-                  <tr><td>Momentum</td><td>RSI 14</td><td>{technicalData.rsi >= 70 ? "OVERBOUGHT" : technicalData.rsi <= 30 ? "OVERSOLD" : "NEUTRAL"}</td><td>70+ quá mua, 30− quá bán</td></tr>
-                  <tr><td>Momentum</td><td>MACD</td><td>{technicalData.macd > technicalData.macdSignal ? "BUY" : technicalData.macd < technicalData.macdSignal ? "SELL" : "NEUTRAL"}</td><td>MACD so với Signal</td></tr>
-                  <tr><td>Volume</td><td>Volume / TB10</td><td>{technicalData.volumeRatio == null ? "—" : `${fmt(technicalData.volumeRatio,2)}x`}</td><td>≥1.5x: thanh khoản tăng mạnh</td></tr>
+                  <tr><td>Xu hướng</td><td>EMA 9/21/50/200</td><td>{translateTrend(technicalData.dailyScenario.primary)}</td><td>So sánh thứ tự các đường EMA</td></tr>
+                  <tr><td>Động lượng</td><td>RSI 14</td><td>{technicalData.rsi >= 70 ? "QUÁ MUA" : technicalData.rsi <= 30 ? "QUÁ BÁN" : "TRUNG TÍNH"}</td><td>Từ 70: quá mua · Dưới 30: quá bán</td></tr>
+                  <tr><td>Động lượng</td><td>MACD</td><td>{technicalData.macd > technicalData.macdSignal ? "MUA" : technicalData.macd < technicalData.macdSignal ? "BÁN" : "TRUNG TÍNH"}</td><td>So sánh MACD với đường tín hiệu</td></tr>
+                  <tr><td>Khối lượng</td><td>KLGD / TB10</td><td>{technicalData.volumeRatio == null ? "—" : `${fmt(technicalData.volumeRatio,2)}x`}</td><td>≥1.5x: thanh khoản tăng mạnh</td></tr>
                 </tbody>
               </table></div>
-              <p className="muted">⚠️ {technicalData.note} Các tỷ lệ UP/DOWN/SIDEWAY là điểm quy đổi từ chỉ báo kỹ thuật, không phải xác suất dự báo thống kê.</p>
+              <p className="muted">⚠️ {technicalData.note} Các tỷ lệ TĂNG/GIẢM/ĐI NGANG là điểm quy đổi từ chỉ báo kỹ thuật, không phải xác suất dự báo thống kê.</p>
             </>}
           </section>
 
