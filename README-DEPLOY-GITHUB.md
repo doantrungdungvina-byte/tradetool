@@ -51,3 +51,9 @@ Khi Yahoo Finance không có mã, `/api/market` và `/api/stock-volume` sẽ g�
 
 ## Vnstock package index
 Vnstock v5 is installed from the official package index at `https://vnstocks.com/api/packages`; it is not distributed through PyPI according to the official installation docs. `requirements.txt` therefore includes `--extra-index-url` and pins `vnstock==5.0.1`. The Python endpoint uses the v5 `Quote(...).history(...)` API. Check Vercel build logs for package-index or authentication errors after deployment.
+
+## Thống kê kỹ thuật cổ phiếu từ TradingView
+- Endpoint mới: `/api/stock-technical?symbol=IDC&exchange=HNX`.
+- Tab VN STOCK có phần **Thống kê kỹ thuật cổ phiếu — TradingView**: Technical Score, Action, kịch bản D1/W1, EMA 9/21/50/200, RSI, MACD, volume/TB10, ATR, đỉnh/đáy 52 tuần, Bollinger Bands và bảng tín hiệu.
+- Nếu mã không có dữ liệu ở sàn được chọn, endpoint thử tiếp HNX, HOSE và UPCoM.
+- Điểm số và kịch bản là ước tính từ chỉ báo, không phải xác suất thống kê hay khuyến nghị đầu tư.

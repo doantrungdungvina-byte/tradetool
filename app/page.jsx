@@ -169,6 +169,9 @@ export default function Home() {
   const [fxData, setFxData] = useState(null);
   const [fundData, setFundData] = useState(null);
   const [stockVolumeData, setStockVolumeData] = useState(null);
+  const [technicalData, setTechnicalData] = useState(null);
+  const [technicalExchange, setTechnicalExchange] = useState("HNX");
+  const [technicalLoading, setTechnicalLoading] = useState(false);
   const [stockVolumeRange, setStockVolumeRange] = useState("3mo");
   const [volumeLoading, setVolumeLoading] = useState(false);
   const [loading, setLoading] = useState("");
@@ -206,6 +209,27 @@ export default function Home() {
       setError(e.message || "Lỗi tải dữ liệu.");
     } finally {
       setLoading("");
+    }
+  }
+
+  async function loadStockTechnical() {
+    const stockCode = symbol.trim().toUpperCase();
+    if (!/^[A-Z0-9.]{2,12}$/.test(stockCode)) {
+      setError("Vui lòng nhập mã cổ phiếu hợp lệ.");
+      return;
+    }
+    setTechnicalLoading(true);
+    setError("");
+    try {
+      const res = await fetch(`/api/stock-technical?symbol=${encodeURIComponent(stockCode)}&exchange=${encodeURIComponent(technicalExchange)}`, { cache: "no-store" });
+      const json = await res.json();
+      if (!res.ok || !json.item) throw new Error(json.error || "Không tải được thống kê kỹ thuật.");
+      setTechnicalData(json.item);
+      setTechnicalExchange(json.item.exchange || technicalExchange);
+    } catch (e) {
+      setError(e.message || "Không tải được thống kê kỹ thuật từ TradingView.");
+    } finally {
+      setTechnicalLoading(false);
     }
   }
 
@@ -365,6 +389,68 @@ export default function Home() {
               {loading === "stock" ? "Đang tải..." : "🔎 PHÂN TÍCH VN STOCK"}
             </button>
           </div>
+
+          <section className="panel" style={{ marginTop: 18 }}>
+            <h3>📈 Thống kê kỹ thuật cổ phiếu — TradingView</h3>
+            <div className="form-grid stock-grid">
+              <label>Sàn giao dịch
+                <select value={technicalExchange} onChange={(e) => setTechnicalExchange(e.target.value)}>
+                  <option value="HNX">HNX</option>
+                  <option value="HOSE">HOSE</option>
+                  <option value="UPCOM">UPCoM</option>
+                </select>
+              </label>
+              <button className="primary action" disabled={technicalLoading} onClick={loadStockTechnical}>
+                {technicalLoading ? "Đang phân tích..." : "📊 PHÂN TÍCH KỸ THUẬT"}
+              </button>
+            </div>
+            {technicalData && technicalData.symbol === symbol.trim().toUpperCase() && <>
+              <p className="muted">Mã: <strong>{technicalData.ticker}</strong> · Nguồn: {technicalData.source} · Cập nhật: {new Date(technicalData.updatedAt).toLocaleString("vi-VN")}</p>
+              <div className="metrics" style={{ gridTemplateColumns: "repeat(3,minmax(0,1fr))" }}>
+                <Metric label={technicalData.name || technicalData.symbol} value={`${fmt(technicalData.price)} đ`} sub={`${technicalData.changePct > 0 ? "+" : ""}${fmt(technicalData.changePct)}% hôm nay`} positive={technicalData.changePct == null ? undefined : technicalData.changePct >= 0} />
+                <Metric label="Technical Score" value={`${technicalData.technicalScore}/100`} sub={`Trend: ${technicalData.dailyScenario.primary}`} />
+                <Metric label="Action" value={technicalData.action} sub={`RSI: ${fmt(technicalData.rsi)} · ${technicalData.rsi >= 70 ? "QUÁ MUA" : technicalData.rsi <= 30 ? "QUÁ BÁN" : "NEUTRAL"}`} positive={technicalData.action === "BUY" ? true : technicalData.action === "SELL" ? false : undefined} />
+              </div>
+              <div className="metrics" style={{ gridTemplateColumns: "repeat(2,minmax(0,1fr))" }}>
+                {[{label:"Kịch bản D1 · Daily",data:technicalData.dailyScenario},{label:"Kịch bản W1 · Weekly",data:technicalData.weeklyScenario}].map((sc) => <div className="metric" key={sc.label}>
+                  <div className="metric-label">{sc.label}</div><div className="metric-value">{sc.data.primary}</div>
+                  <div style={{display:"grid",gridTemplateColumns:"repeat(3,minmax(0,1fr))",gap:8,marginTop:10}}>
+                    <div><strong style={{color:"#21c77a"}}>{fmt(sc.data.up,1)}%</strong><div className="metric-sub">UP</div></div>
+                    <div><strong style={{color:"#ff5964"}}>{fmt(sc.data.down,1)}%</strong><div className="metric-sub">DOWN</div></div>
+                    <div><strong style={{color:"#e7b44c"}}>{fmt(sc.data.sideways,1)}%</strong><div className="metric-sub">SIDEWAY</div></div>
+                  </div>
+                  <div className="metric-sub" style={{marginTop:8}}>{sc.data.note}</div>
+                </div>)}
+              </div>
+              <div className="metrics">
+                <Metric label="EMA 9 · Ngắn hạn" value={fmt(technicalData.ema9)} />
+                <Metric label="EMA 21 · Trung hạn" value={fmt(technicalData.ema21)} />
+                <Metric label="EMA 50 · Xu hướng" value={fmt(technicalData.ema50)} />
+                <Metric label="EMA 200 · Dài hạn" value={fmt(technicalData.ema200)} />
+                <Metric label="RSI 14" value={fmt(technicalData.rsi)} sub={technicalData.rsi >= 70 ? "Quá mua" : technicalData.rsi <= 30 ? "Quá bán" : "Trung tính"} />
+                <Metric label="MACD" value={fmt(technicalData.macd)} sub={technicalData.macd > technicalData.macdSignal ? "BUY" : technicalData.macd < technicalData.macdSignal ? "SELL" : "NEUTRAL"} />
+                <Metric label="Khối lượng gần nhất" value={technicalData.volume == null ? "—" : `${fmt(technicalData.volume,0)} cp`} />
+                <Metric label="KLGD / TB10" value={technicalData.volumeRatio == null ? "—" : `${fmt(technicalData.volumeRatio,2)}x`} sub={technicalData.volumeRatio >= 1.5 ? "Thanh khoản tăng mạnh" : "So với trung bình 10 phiên"} />
+                <Metric label="ATR" value={fmt(technicalData.atr)} />
+                <Metric label="Đỉnh 52 tuần" value={fmt(technicalData.high52)} />
+                <Metric label="Đáy 52 tuần" value={fmt(technicalData.low52)} />
+                <Metric label="Hỗ trợ gần · BB Lower" value={fmt(technicalData.support)} />
+                <Metric label="Kháng cự gần · BB Upper" value={fmt(technicalData.resistance)} />
+                <Metric label="Hiệu suất tuần" value={technicalData.perfWeek == null ? "—" : `${fmt(technicalData.perfWeek)}%`} positive={technicalData.perfWeek == null ? undefined : technicalData.perfWeek >= 0} />
+                <Metric label="Hiệu suất tháng" value={technicalData.perfMonth == null ? "—" : `${fmt(technicalData.perfMonth)}%`} positive={technicalData.perfMonth == null ? undefined : technicalData.perfMonth >= 0} />
+              </div>
+              <div className="table-scroll"><table>
+                <thead><tr><th>Nhóm</th><th>Chỉ báo</th><th>Tín hiệu</th><th>Giải thích</th></tr></thead>
+                <tbody>
+                  <tr><td>Trend</td><td>EMA 9/21/50/200</td><td>{technicalData.dailyScenario.primary}</td><td>So sánh thứ tự các EMA</td></tr>
+                  <tr><td>Momentum</td><td>RSI 14</td><td>{technicalData.rsi >= 70 ? "OVERBOUGHT" : technicalData.rsi <= 30 ? "OVERSOLD" : "NEUTRAL"}</td><td>70+ quá mua, 30− quá bán</td></tr>
+                  <tr><td>Momentum</td><td>MACD</td><td>{technicalData.macd > technicalData.macdSignal ? "BUY" : technicalData.macd < technicalData.macdSignal ? "SELL" : "NEUTRAL"}</td><td>MACD so với Signal</td></tr>
+                  <tr><td>Volume</td><td>Volume / TB10</td><td>{technicalData.volumeRatio == null ? "—" : `${fmt(technicalData.volumeRatio,2)}x`}</td><td>≥1.5x: thanh khoản tăng mạnh</td></tr>
+                </tbody>
+              </table></div>
+              <p className="muted">⚠️ {technicalData.note} Các tỷ lệ UP/DOWN/SIDEWAY là điểm quy đổi từ chỉ báo kỹ thuật, không phải xác suất dự báo thống kê.</p>
+            </>}
+          </section>
 
           {marketData && (
             <>

@@ -84,7 +84,57 @@ export async function GET(request) {
       } catch {
         // Keep the original Yahoo error below.
       }
-      throw new Error(`Yahoo Finance không có dữ liệu khối lượng cho ${symbol} (đã thử ${yahooSymbols.join(", ")}${lastHttpStatus ? `; HTTP cuối: ${lastHttpStatus}` : ""}); Vnstock cũng không trả dữ liệu. Kiểm tra cấu hình Python/Vnstock trên Vercel.`);
+      // Last-resort: get the latest volume snapshot from TradingView Scanner.
+      // Scanner provides current/most recent session volume, not historical OHLCV.
+      try {
+        const exchanges = ["HNX", "HOSE", "UPCOM"];
+        const tvResponse = await fetch("https://scanner.tradingview.com/vietnam/scan", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Accept: "application/json" },
+          body: JSON.stringify({
+            symbols: { tickers: exchanges.map(ex => `${ex}:${symbol}`), query: { types: [] } },
+            columns: ["close", "change", "volume", "average_volume_10d_calc", "name"]
+          }),
+          signal: AbortSignal.timeout(12000),
+          cache: "no-store",
+        });
+        if (tvResponse.ok) {
+          const tvPayload = await tvResponse.json();
+          const tvRows = Array.isArray(tvPayload?.data) ? tvPayload.data : [];
+          const tvRow = tvRows.find(row => Array.isArray(row?.d)
+            && Number.isFinite(Number(row.d[0]))
+            && row.d[2] !== null && row.d[2] !== undefined
+            && Number.isFinite(Number(row.d[2])));
+          if (tvRow) {
+            const d = tvRow.d;
+            const close = Number(d[0]);
+            const changePct = d[1] == null ? null : Number(d[1]);
+            const volume = Number(d[2]);
+            const avgVolume10 = d[3] == null ? null : Number(d[3]);
+            const date = new Date().toISOString().slice(0, 10);
+            const round = n => Number.isFinite(n) ? Number(n.toFixed(2)) : null;
+            return NextResponse.json({
+              symbol,
+              source: "TradingView Scanner",
+              yahooSymbol: null,
+              tradingViewTicker: tvRow.s || null,
+              updatedAt: date,
+              latest: { date, open: null, high: null, low: null, close, volume: Math.round(volume) },
+              previous: null,
+              avgVolume20: null,
+              avgVolume10: Number.isFinite(avgVolume10) ? Math.round(avgVolume10) : null,
+              changePct: round(changePct),
+              volumeChangePct: null,
+              volumeVsAvgPct: Number.isFinite(avgVolume10) && avgVolume10 > 0 ? round((volume / avgVolume10 - 1) * 100) : null,
+              history: [{ date, open: null, high: null, low: null, close, volume: Math.round(volume) }],
+              note: "TradingView cung cấp khối lượng phiên gần nhất/ảnh chụp hiện tại; không có lịch sử khối lượng trong nguồn dự phòng này."
+            }, { headers: { "Cache-Control": "s-maxage=300, stale-while-revalidate=600" } });
+          }
+        }
+      } catch {
+        // Keep the diagnostic error below if TradingView also fails.
+      }
+      throw new Error(`Không lấy được khối lượng cho ${symbol}: Yahoo Finance đã thử ${yahooSymbols.join(", ")}${lastHttpStatus ? ` (HTTP cuối: ${lastHttpStatus})` : ""}; Vnstock và TradingView Scanner cũng không trả khối lượng hợp lệ.`);
     }
     const rows = result.timestamp.map((ts, i) => ({
       date: new Date(ts * 1000).toISOString().slice(0, 10),
