@@ -233,6 +233,50 @@ export default function Home() {
     }
   }
 
+  async function loadAllStockData() {
+    const stockCode = symbol.trim().toUpperCase();
+    if (!/^[A-Z0-9.]{2,12}$/.test(stockCode)) {
+      setError("Vui lòng nhập mã cổ phiếu hợp lệ.");
+      return;
+    }
+    setLoading("stock");
+    setTechnicalLoading(true);
+    setVolumeLoading(true);
+    setError("");
+    setMarketData(null);
+    setTechnicalData(null);
+    setStockVolumeData(null);
+    const requests = await Promise.allSettled([
+      fetch(`/api/market?symbol=${encodeURIComponent(stockCode)}&kind=stock`, { cache: "no-store" }).then(async r => {
+        const j = await r.json();
+        if (!r.ok) throw new Error(j.error || "Không tải được dữ liệu thị trường.");
+        return j;
+      }),
+      fetch(`/api/stock-technical?symbol=${encodeURIComponent(stockCode)}&exchange=${encodeURIComponent(technicalExchange)}`, { cache: "no-store" }).then(async r => {
+        const j = await r.json();
+        if (!r.ok || !j.item) throw new Error(j.error || "Không tải được thống kê kỹ thuật.");
+        return j.item;
+      }),
+      fetch(`/api/stock-volume?symbol=${encodeURIComponent(stockCode)}&range=${encodeURIComponent(stockVolumeRange)}`, { cache: "no-store" }).then(async r => {
+        const j = await r.json();
+        if (!r.ok) throw new Error(j.error || "Không tải được thống kê khối lượng.");
+        return j;
+      })
+    ]);
+    if (requests[0].status === "fulfilled") setMarketData(requests[0].value);
+    if (requests[1].status === "fulfilled") {
+      setTechnicalData(requests[1].value);
+      setTechnicalExchange(requests[1].value.exchange || technicalExchange);
+    }
+    if (requests[2].status === "fulfilled") setStockVolumeData(requests[2].value);
+    const errors = requests.filter(r => r.status === "rejected").map(r => r.reason?.message || "Lỗi tải dữ liệu.");
+    if (errors.length === 3) setError(errors.join(" · "));
+    else if (errors.length) setError(`Đã tải được một phần dữ liệu. ${errors.join(" · ")}`);
+    setLoading("");
+    setTechnicalLoading(false);
+    setVolumeLoading(false);
+  }
+
   async function loadStockVolume() {
     const stockCode = symbol.trim().toUpperCase();
     if (!/^[A-Z0-9]{2,12}$/.test(stockCode)) {
@@ -385,25 +429,21 @@ export default function Home() {
             <label>Vốn DCA (VND)
               <input type="number" min="0" step="1000000" value={capital} onChange={(e) => setCapital(e.target.value)} />
             </label>
-            <button className="primary action" disabled={loading === "stock"} onClick={() => loadMarket("stock")}>
-              {loading === "stock" ? "Đang tải..." : "🔎 PHÂN TÍCH VN STOCK"}
+            <label>Sàn giao dịch
+              <select value={technicalExchange} onChange={(e) => setTechnicalExchange(e.target.value)}>
+                <option value="HNX">HNX</option>
+                <option value="HOSE">HOSE</option>
+                <option value="UPCOM">UPCoM</option>
+              </select>
+            </label>
+            <button className="primary action" disabled={loading === "stock"} onClick={loadAllStockData}>
+              {loading === "stock" ? "Đang phân tích..." : "🔎 PHÂN TÍCH"}
             </button>
           </div>
 
           <section className="panel" style={{ marginTop: 18 }}>
             <h3>📈 Thống kê kỹ thuật cổ phiếu — TradingView</h3>
-            <div className="form-grid stock-grid">
-              <label>Sàn giao dịch
-                <select value={technicalExchange} onChange={(e) => setTechnicalExchange(e.target.value)}>
-                  <option value="HNX">HNX</option>
-                  <option value="HOSE">HOSE</option>
-                  <option value="UPCOM">UPCoM</option>
-                </select>
-              </label>
-              <button className="primary action" disabled={technicalLoading} onClick={loadStockTechnical}>
-                {technicalLoading ? "Đang phân tích..." : "📊 PHÂN TÍCH KỸ THUẬT"}
-              </button>
-            </div>
+            <p className="muted">Chọn mã cổ phiếu và sàn ở phía trên, sau đó bấm PHÂN TÍCH một lần để tải dữ liệu thị trường, thống kê kỹ thuật và khối lượng.</p>
             {technicalData && technicalData.symbol === symbol.trim().toUpperCase() && <>
               <p className="muted">Mã: <strong>{technicalData.ticker}</strong> · Nguồn: {technicalData.source} · Cập nhật: {new Date(technicalData.updatedAt).toLocaleString("vi-VN")}</p>
               <div className="metrics" style={{ gridTemplateColumns: "repeat(3,minmax(0,1fr))" }}>
@@ -472,9 +512,7 @@ export default function Home() {
                       <option value="1y">1 năm</option>
                     </select>
                   </label>
-                  <button className="primary action" disabled={volumeLoading} onClick={loadStockVolume}>
-                    {volumeLoading ? "Đang tải..." : "📊 THỐNG KÊ KHỐI LƯỢNG"}
-                  </button>
+                  <span className="muted">{volumeLoading ? "Đang tải khối lượng..." : "Khối lượng được cập nhật cùng lần phân tích."}</span>
                 </div>
                 {stockVolumeData && stockVolumeData.symbol === symbol.trim().toUpperCase() && <>
                   <p className="muted">Phiên dữ liệu gần nhất: {stockVolumeData.updatedAt} · Nguồn: {stockVolumeData.source}</p>
@@ -496,7 +534,7 @@ export default function Home() {
                     const a = document.createElement("a"); a.href = url; a.download = `${stockVolumeData.symbol}_khoi_luong.csv`; a.click(); URL.revokeObjectURL(url);
                   }}>📥 Tải CSV</button>
                 </>}
-                <p className="muted">Dữ liệu lấy từ Yahoo Finance, có thể bị trễ hoặc không có với một số mã. Khối lượng là số cổ phiếu, không phải số lệnh.</p>
+                <p className="muted">Nguồn khối lượng phụ thuộc dữ liệu trả về từ API; có thể trễ hoặc không có với một số mã. Khối lượng là số cổ phiếu, không phải số lệnh.</p>
               </section>
 
               <h3>Kế hoạch mua thăm dò &amp; DCA (tham khảo)</h3>
