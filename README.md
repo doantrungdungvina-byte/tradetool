@@ -51,3 +51,11 @@ npm start
 - Other Forex/crypto symbols, Vietnamese stock analysis, foreign-flow tab, fund NAV lookup and DCA illustration remain on their existing code paths.
 - The application only fetches market data and calculates indicators; it does not place trades.
 - Twelve Data access, quota, and data delay depend on the user's plan. XAU/USD provider prices may differ from an individual broker's quote.
+
+
+## Foreign-flow endpoint
+
+- Route: `GET /api/foreign?symbol=FPT`.
+- The route requests only one latest row using `limit=1`, validates that buy/sell volumes are present, and never fabricates numbers.
+- Configure `FOREIGN_FLOW_API_URL` in Vercel to a real JSON provider endpoint that supports `symbol` and `limit` query parameters. If the provider needs bearer authentication, set `FOREIGN_FLOW_API_TOKEN`.
+- **Important:** this project does not include a verified free foreign-flow provider. Without an upstream endpoint, the route returns a clear `503` rather than fake values. Provider response fields may need mapping in `app/api/foreign/route.js`.

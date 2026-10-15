@@ -374,7 +374,15 @@ export default function Home() {
                 <Metric label="Khối lượng bán" value={fmt(foreignData.sellVolume, 0)} />
                 <Metric label="Mua/bán ròng" value={fmt(foreignData.netVolume, 0)} positive={foreignData.netVolume >= 0} />
               </div>
-              <p className="muted">{foreignData.source} · {foreignData.note}</p>
+              <p className="muted">Phiên giao dịch: {foreignData.date || "Nguồn không cung cấp ngày"} · {foreignData.source}</p>
+              {(foreignData.buyValue != null || foreignData.sellValue != null || foreignData.netValue != null) && (
+                <div className="metrics">
+                  <Metric label="Giá trị mua" value={foreignData.buyValue == null ? "—" : fmt(foreignData.buyValue, 0)} />
+                  <Metric label="Giá trị bán" value={foreignData.sellValue == null ? "—" : fmt(foreignData.sellValue, 0)} />
+                  <Metric label="Giá trị ròng" value={foreignData.netValue == null ? "—" : fmt(foreignData.netValue, 0)} positive={foreignData.netValue == null ? undefined : foreignData.netValue >= 0} />
+                </div>
+              )}
+              <p className="muted">{foreignData.note}</p>
             </>
           )}
           <div className="alert info">Nếu nguồn miễn phí không cung cấp lịch sử khối ngoại hoặc chặn truy cập, ứng dụng sẽ báo rõ thay vì hiển thị số liệu giả.</div>
