@@ -83,3 +83,31 @@ a{color:#1c62c5;text-decoration:none}a:hover{text-decoration:underline}
 .fund-code-option:hover,.fund-code-option.selected{background:#edf4ff}
 .fund-code-empty{padding:14px;font-size:12px;color:var(--muted)}
 .fund-code-close{width:100%;padding:9px;border:0;border-top:1px solid var(--line);background:#f8faff;color:var(--ink);cursor:pointer;font-size:12px}
+
+/* Lịch Vạn Niên */
+.calendar-toolbar{display:grid;grid-template-columns:auto 1fr auto auto;align-items:center;gap:10px;margin:22px 0 16px}
+.calendar-month-title{text-align:center;font-size:20px;font-weight:800}
+.calendar-nav,.calendar-today{border:1px solid var(--line);border-radius:9px;padding:10px 14px;background:#fff;color:var(--ink);cursor:pointer}
+.calendar-today{background:var(--red);color:#fff;border-color:var(--red);font-weight:700}
+.calendar-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:6px}
+.calendar-weekday{text-align:center;padding:10px 3px;color:#69758b;font-size:12px;font-weight:750}
+.calendar-weekday.sunday{color:#d83a3a}
+.calendar-cell{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;min-height:76px;border:1px solid var(--line);border-radius:10px;background:#fff;color:var(--ink);cursor:pointer;padding:8px 3px}
+.calendar-cell:hover{border-color:#f08a8a;background:#fffafa}
+.calendar-cell.empty{background:#f8f9fc;border-color:transparent;cursor:default}
+.calendar-solar{font-size:18px;font-weight:800;line-height:1.2}
+.calendar-lunar{font-size:11px;color:#8a93a4}
+.calendar-cell.sunday .calendar-solar{color:#d83a3a}
+.calendar-cell.saturday .calendar-solar{color:#2463eb}
+.calendar-cell.is-today{border:2px solid var(--red)}
+.calendar-cell.is-selected{background:#fff0f0;border-color:var(--red);box-shadow:0 0 0 2px #ff49491a}
+.calendar-cell.has-holiday .calendar-lunar{color:#b45309}
+.calendar-dot{position:absolute;right:8px;top:8px;width:5px;height:5px;border-radius:50%;background:#e69b28}
+.calendar-detail{display:grid;grid-template-columns:1fr 1fr 1.2fr;gap:12px;margin-top:20px}
+.calendar-detail>div{display:flex;flex-direction:column;gap:8px;padding:16px;border:1px solid var(--line);border-radius:11px;background:#fbfcff;min-width:0}
+.calendar-detail strong{font-size:14px;line-height:1.5;overflow-wrap:anywhere}
+.calendar-legend{display:flex;align-items:center;gap:8px;flex-wrap:wrap;color:var(--muted);font-size:12px;margin-top:16px}
+.legend-today{width:12px;height:12px;border:2px solid var(--red);border-radius:3px;margin-left:4px}
+.legend-holiday{width:7px;height:7px;border-radius:50%;background:#e69b28;margin-left:8px}
+.legend-lunar{display:inline-grid;place-items:center;width:20px;height:20px;border-radius:50%;background:#f2f4f8;color:#778197;margin-left:8px}
+@media(max-width:700px){.calendar-toolbar{grid-template-columns:1fr 1fr}.calendar-month-title{grid-column:1/-1;grid-row:1;font-size:18px}.calendar-grid{gap:3px}.calendar-cell{min-height:58px;border-radius:7px}.calendar-solar{font-size:16px}.calendar-lunar{font-size:10px}.calendar-detail{grid-template-columns:1fr}.calendar-weekday{font-size:10px;padding:7px 1px}.calendar-dot{right:4px;top:4px}}

@@ -19,6 +19,7 @@ const TABS = [
   { id: "funds", label: "📈 CHỨNG CHỈ QUỸ" },
   { id: "dca", label: "🧮 DCA" },
   { id: "compound", label: "📈 LÃI KÉP" },
+  { id: "calendar", label: "🗓️ LỊCH VẠN NIÊN" },
 ];
 
 const FX_SYMBOLS = [
@@ -78,6 +79,89 @@ const FUNDS = [
   ["ABEF", "ABEF — Tên quỹ cần xác minh từ đơn vị quản lý"],
   ["DCAF", "DCAF — Tên quỹ cần xác minh từ đơn vị quản lý"],
 ];
+
+// Âm lịch Việt Nam (múi giờ UTC+7), thuật toán thiên văn phổ biến.
+function jdFromDate(dd, mm, yy) {
+  const a = Math.floor((14 - mm) / 12);
+  const y = yy + 4800 - a;
+  const m = mm + 12 * a - 3;
+  let jd = dd + Math.floor((153 * m + 2) / 5) + 365 * y + Math.floor(y / 4) - Math.floor(y / 100) + Math.floor(y / 400) - 32045;
+  if (jd < 2299161) jd = dd + Math.floor((153 * m + 2) / 5) + 365 * y + Math.floor(y / 4) - 32083;
+  return jd;
+}
+function newMoonDay(k) {
+  const T = k / 1236.85, T2 = T * T, T3 = T2 * T;
+  const dr = Math.PI / 180;
+  let jd1 = 2415020.75933 + 29.53058868 * k + 0.0001178 * T2 - 0.000000155 * T3;
+  jd1 += 0.00033 * Math.sin((166.56 + 132.87 * T - 0.009173 * T2) * dr);
+  const M = 359.2242 + 29.10535608 * k - 0.0000333 * T2 - 0.00000347 * T3;
+  const Mpr = 306.0253 + 385.81691806 * k + 0.0107306 * T2 + 0.00001236 * T3;
+  const F = 21.2964 + 390.67050646 * k - 0.0016528 * T2 - 0.00000239 * T3;
+  let C1 = (0.1734 - 0.000393 * T) * Math.sin(M * dr) + 0.0021 * Math.sin(2 * M * dr);
+  C1 -= 0.4068 * Math.sin(Mpr * dr) + 0.0161 * Math.sin(2 * Mpr * dr) - 0.0004 * Math.sin(3 * Mpr * dr);
+  C1 += 0.0104 * Math.sin(2 * F * dr) - 0.0051 * Math.sin((M + Mpr) * dr) - 0.0074 * Math.sin((M - Mpr) * dr);
+  C1 += 0.0004 * Math.sin((2 * F + M) * dr) - 0.0004 * Math.sin((2 * F - M) * dr) - 0.0006 * Math.sin((2 * F + Mpr) * dr) + 0.0010 * Math.sin((2 * F - Mpr) * dr) + 0.0005 * Math.sin((2 * Mpr + M) * dr);
+  const deltaT = T < -11 ? 0.001 + 0.000839 * T + 0.0002261 * T2 - 0.00000845 * T3 - 0.000000081 * T * T3 : -0.000278 + 0.000265 * T + 0.000262 * T2;
+  return Math.floor(jd1 + C1 - deltaT + 0.5 + 7 / 24);
+}
+function sunLongitudeSector(jdn) {
+  const T = (jdn - 2451545.5 - 7 / 24) / 36525;
+  const T2 = T * T, dr = Math.PI / 180;
+  const M = 357.52910 + 35999.05030 * T - 0.0001559 * T2 - 0.00000048 * T * T2;
+  const L0 = 280.46645 + 36000.76983 * T + 0.0003032 * T2;
+  let DL = (1.914600 - 0.004817 * T - 0.000014 * T2) * Math.sin(dr * M);
+  DL += (0.019993 - 0.000101 * T) * Math.sin(2 * dr * M) + 0.000290 * Math.sin(3 * dr * M);
+  let L = (L0 + DL) * dr;
+  L -= Math.PI * 2 * Math.floor(L / (Math.PI * 2));
+  return Math.floor(L / Math.PI * 6);
+}
+function lunarMonth11(yy) {
+  const off = jdFromDate(31, 12, yy) - 2415021;
+  const k = Math.floor(off / 29.530588853);
+  let nm = newMoonDay(k);
+  if (sunLongitudeSector(nm) >= 9) nm = newMoonDay(k - 1);
+  return nm;
+}
+function lunarLeapOffset(a11) {
+  const k = Math.floor((a11 - 2415021.076998695) / 29.530588853 + 0.5);
+  let last = 0, i = 1, arc = sunLongitudeSector(newMoonDay(k + i));
+  do { last = arc; i++; arc = sunLongitudeSector(newMoonDay(k + i)); } while (arc !== last && i < 14);
+  return i - 1;
+}
+function solarToLunar(dd, mm, yy) {
+  const dayNumber = jdFromDate(dd, mm, yy);
+  const k = Math.floor((dayNumber - 2415021.076998695) / 29.530588853);
+  let monthStart = newMoonDay(k + 1);
+  if (monthStart > dayNumber) monthStart = newMoonDay(k);
+  let a11 = lunarMonth11(yy), b11 = a11, lunarYear;
+  if (a11 >= monthStart) { lunarYear = yy; a11 = lunarMonth11(yy - 1); }
+  else { lunarYear = yy + 1; b11 = lunarMonth11(yy + 1); }
+  const lunarDay = dayNumber - monthStart + 1;
+  const diff = Math.floor((monthStart - a11) / 29);
+  let lunarMonth = diff + 11, leap = 0;
+  if (b11 - a11 > 365) {
+    const leapDiff = lunarLeapOffset(a11);
+    if (diff >= leapDiff) lunarMonth = diff + 10;
+    if (diff === leapDiff) leap = 1;
+  }
+  if (lunarMonth > 12) lunarMonth -= 12;
+  if (lunarMonth >= 11 && diff < 4) lunarYear -= 1;
+  return { day: lunarDay, month: lunarMonth, year: lunarYear, leap };
+}
+function getCalendarHoliday(day, month, lunar) {
+  const solar = { '1-1':'Tết Dương lịch', '14-2':'Lễ Tình nhân', '8-3':'Quốc tế Phụ nữ', '30-4':'Ngày Giải phóng miền Nam', '1-5':'Quốc tế Lao động', '1-6':'Quốc tế Thiếu nhi', '2-9':'Quốc khánh', '20-10':'Ngày Phụ nữ Việt Nam', '20-11':'Ngày Nhà giáo Việt Nam', '24-12':'Lễ Giáng sinh' };
+  const result = [];
+  if (solar[`${day}-${month}`]) result.push(solar[`${day}-${month}`]);
+  if (lunar.day === 1 && lunar.month === 1) result.push('Mùng 1 Tết Nguyên đán');
+  if (lunar.day === 2 && lunar.month === 1) result.push('Mùng 2 Tết');
+  if (lunar.day === 3 && lunar.month === 1) result.push('Mùng 3 Tết');
+  if (lunar.day === 15 && lunar.month === 1) result.push('Rằm tháng Giêng');
+  if (lunar.day === 10 && lunar.month === 3) result.push('Giỗ Tổ Hùng Vương');
+  if (lunar.day === 15 && lunar.month === 4) result.push('Lễ Phật Đản');
+  if (lunar.day === 15 && lunar.month === 7) result.push('Rằm tháng Bảy');
+  if (lunar.day === 15 && lunar.month === 8) result.push('Tết Trung thu');
+  return result;
+}
 
 const formatMoneyInput = (value) => {
   const digits = String(value ?? "").replace(/\D/g, "");
@@ -169,6 +253,8 @@ function ShareApp() {
 
 export default function Home() {
   const [tab, setTab] = useState("stock");
+  const [calendarViewDate, setCalendarViewDate] = useState(() => new Date());
+  const [calendarSelectedDate, setCalendarSelectedDate] = useState(() => new Date());
   const [symbol, setSymbol] = useState("FPT");
   const [fxSymbol, setFxSymbol] = useState("XAUUSD");
   const [xauInterval, setXauInterval] = useState("5min");
@@ -785,6 +871,52 @@ export default function Home() {
           </div>
         </section>
       )}
+
+      {tab === "calendar" && (() => {
+        const viewYear = calendarViewDate.getFullYear();
+        const viewMonth = calendarViewDate.getMonth();
+        const firstWeekday = new Date(viewYear, viewMonth, 1).getDay();
+        const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
+        const cells = [...Array(firstWeekday).fill(null), ...Array.from({ length: daysInMonth }, (_, i) => i + 1)];
+        while (cells.length % 7) cells.push(null);
+        const selectedLunar = solarToLunar(calendarSelectedDate.getDate(), calendarSelectedDate.getMonth() + 1, calendarSelectedDate.getFullYear());
+        const selectedHolidays = getCalendarHoliday(calendarSelectedDate.getDate(), calendarSelectedDate.getMonth() + 1, selectedLunar);
+        const today = new Date();
+        const monthNames = ["Tháng Một", "Tháng Hai", "Tháng Ba", "Tháng Tư", "Tháng Năm", "Tháng Sáu", "Tháng Bảy", "Tháng Tám", "Tháng Chín", "Tháng Mười", "Tháng Mười Một", "Tháng Mười Hai"];
+        const weekdays = ["Chủ nhật", "Thứ hai", "Thứ ba", "Thứ tư", "Thứ năm", "Thứ sáu", "Thứ bảy"];
+        const changeMonth = (offset) => setCalendarViewDate(new Date(viewYear, viewMonth + offset, 1));
+        return <section className="panel calendar-panel">
+          <h2>🗓️ Lịch Vạn Niên Việt Nam</h2>
+          <p className="muted">Tra cứu ngày dương lịch, âm lịch và một số ngày lễ phổ biến. Âm lịch được tính theo múi giờ Việt Nam (UTC+7).</p>
+          <div className="calendar-toolbar">
+            <button type="button" className="calendar-nav" onClick={() => changeMonth(-1)} aria-label="Tháng trước">‹ Tháng trước</button>
+            <div className="calendar-month-title">{monthNames[viewMonth]} {viewYear}</div>
+            <button type="button" className="calendar-nav" onClick={() => changeMonth(1)} aria-label="Tháng sau">Tháng sau ›</button>
+            <button type="button" className="calendar-today" onClick={() => { const now = new Date(); setCalendarViewDate(now); setCalendarSelectedDate(now); }}>Hôm nay</button>
+          </div>
+          <div className="calendar-grid">
+            {weekdays.map((day) => <div key={day} className={`calendar-weekday${day === "Chủ nhật" ? " sunday" : ""}`}>{day}</div>)}
+            {cells.map((day, index) => {
+              if (!day) return <div key={`empty-${index}`} className="calendar-cell empty" />;
+              const lunar = solarToLunar(day, viewMonth + 1, viewYear);
+              const holidays = getCalendarHoliday(day, viewMonth + 1, lunar);
+              const isToday = day === today.getDate() && viewMonth === today.getMonth() && viewYear === today.getFullYear();
+              const isSelected = day === calendarSelectedDate.getDate() && viewMonth === calendarSelectedDate.getMonth() && viewYear === calendarSelectedDate.getFullYear();
+              return <button type="button" key={day} className={`calendar-cell${index % 7 === 0 ? " sunday" : ""}${index % 7 === 6 ? " saturday" : ""}${isToday ? " is-today" : ""}${isSelected ? " is-selected" : ""}${holidays.length ? " has-holiday" : ""}`} onClick={() => setCalendarSelectedDate(new Date(viewYear, viewMonth, day))}>
+                <span className="calendar-solar">{day}</span><span className="calendar-lunar">{lunar.day === 1 ? `${lunar.day}/${lunar.month}${lunar.leap ? "N" : ""}` : lunar.day}</span>
+                {holidays.length > 0 && <span className="calendar-dot" aria-label={holidays.join(", ")} />}
+              </button>;
+            })}
+          </div>
+          <div className="calendar-detail">
+            <div><span className="muted">Ngày dương lịch</span><strong>{weekdays[calendarSelectedDate.getDay()]}, {calendarSelectedDate.getDate()} tháng {calendarSelectedDate.getMonth() + 1} năm {calendarSelectedDate.getFullYear()}</strong></div>
+            <div><span className="muted">Ngày âm lịch</span><strong>Ngày {selectedLunar.day} tháng {selectedLunar.month}{selectedLunar.leap ? " nhuận" : ""} năm {selectedLunar.year}</strong></div>
+            <div><span className="muted">Ngày lễ / ghi chú</span><strong>{selectedHolidays.length ? selectedHolidays.join(" · ") : "Không có ngày lễ phổ biến được ghi nhận"}</strong></div>
+          </div>
+          <p className="calendar-legend"><span className="legend-today" /> Hôm nay <span className="legend-holiday" /> Có ngày lễ <span className="legend-lunar">15</span> Ngày âm lịch</p>
+          <div className="alert info">Lưu ý: lịch này phục vụ tra cứu tham khảo. Tên ngày lễ và ghi chú chưa phải lịch nghỉ chính thức; các ngày lễ âm lịch được nhận diện theo ngày âm, không thay thế thông báo của cơ quan chức năng.</div>
+        </section>;
+      })()}
 
       <DonationSupport />
       <ShareApp />
