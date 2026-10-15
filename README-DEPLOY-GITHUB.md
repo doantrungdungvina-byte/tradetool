@@ -34,3 +34,8 @@ Replace the URL with your repository URL. If Git is already initialized, skip `g
 ## Notes
 - The compounding planner is a scenario estimate, not a guarantee. It assumes a constant annual return converted to monthly/quarterly periods and contributions at the end of each period. It excludes inflation, fees and taxes.
 - Market API data may be delayed or unavailable depending on upstream providers.
+
+
+## Nguồn dữ liệu dự phòng HNX/UPCoM
+
+Khi Yahoo Finance không có mã, `/api/market` và `/api/stock-volume` sẽ gọi hàm Python `/api/vnstock` (VCI, sau đó KBS). Vercel cần cài các phụ thuộc trong `requirements.txt`. Sau khi deploy, thử `/api/vnstock?symbol=IDC` để kiểm tra riêng nguồn Python.

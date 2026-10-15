@@ -151,7 +151,65 @@ export async function GET(request) {
       }
     }
     if (!result) {
-      throw new Error(`Yahoo Finance không có dữ liệu cho ${symbol} (đã thử ${yahooSymbols.join(", ")}${lastHttpStatus ? `; HTTP cuối: ${lastHttpStatus}` : ""}). Mã có thể thuộc HNX/UPCoM nhưng chưa được Yahoo hỗ trợ; cần dùng nguồn dữ liệu khác.`);
+      // Yahoo does not cover every HNX/UPCoM ticker. Fall back to the project's
+      // Python Vnstock function (VCI -> KBS) before returning an error.
+      try {
+        const fallbackUrl = new URL("/api/vnstock", request.url);
+        fallbackUrl.searchParams.set("symbol", symbol);
+        const fallbackResponse = await fetch(fallbackUrl, {
+          headers: { Accept: "application/json" },
+          cache: "no-store",
+          signal: AbortSignal.timeout(20000),
+        });
+        const fallback = await fallbackResponse.json().catch(() => null);
+        if (fallbackResponse.ok && fallback && Number.isFinite(Number(fallback.price))) {
+          const close = Number(fallback.price);
+          const previousClose = Number(fallback.previousClose);
+          const indicators = fallback.indicators || {};
+          const history = Array.isArray(fallback.history) ? fallback.history : [];
+          const ma20 = Number(indicators.ma20);
+          const ma50 = Number(indicators.ma50);
+          const trend = Number.isFinite(ma20) && close > ma20 && (!Number.isFinite(ma50) || ma20 > ma50)
+            ? "Tăng"
+            : Number.isFinite(ma20) && close < ma20 && (!Number.isFinite(ma50) || ma20 < ma50)
+              ? "Giảm" : "Đi ngang / chưa rõ";
+          return NextResponse.json({
+            symbol,
+            yahooSymbol: null,
+            currency: "VND",
+            price: close,
+            changePct: Number.isFinite(Number(fallback.changePct)) ? Number(fallback.changePct) : null,
+            indicators: {
+              ma20: Number.isFinite(ma20) ? ma20 : null,
+              ma50: Number.isFinite(ma50) ? ma50 : null,
+              ma200: Number.isFinite(Number(indicators.ma200)) ? Number(indicators.ma200) : null,
+              rsi14: Number.isFinite(Number(indicators.rsi14)) ? Number(indicators.rsi14) : null,
+              atr14: Number.isFinite(Number(indicators.atr14)) ? Number(indicators.atr14) : null,
+              atrPct: Number.isFinite(Number(indicators.atr14)) && close ? Number((Number(indicators.atr14) / close * 100).toFixed(4)) : null,
+              macd: Number.isFinite(Number(indicators.macd)) ? Number(indicators.macd) : null,
+              bollingerUpper: Number.isFinite(Number(indicators.bollingerUpper)) ? Number(indicators.bollingerUpper) : null,
+              bollingerLower: Number.isFinite(Number(indicators.bollingerLower)) ? Number(indicators.bollingerLower) : null,
+              support20: history.length ? Math.min(...history.slice(-20).map(r => Number(r.low)).filter(Number.isFinite)) : null,
+              resistance20: history.length ? Math.max(...history.slice(-20).map(r => Number(r.high)).filter(Number.isFinite)) : null,
+            },
+            analysis: {
+              trend,
+              technicalSummary: [
+                "Nguồn dữ liệu: Vnstock (ưu tiên VCI, dự phòng KBS).",
+                "Các chỉ báo kỹ thuật được tính từ lịch sử giá do nguồn trả về.",
+              ],
+            },
+            fundamentals: emptyFundamentals(),
+            levels: Array.isArray(fallback.levels) ? fallback.levels : [],
+            history: history.filter(r => Number.isFinite(Number(r.close))).slice(-220).map(r => ({ date: r.date, close: Number(r.close) })),
+            source: fallback.source || "Vnstock",
+            updatedAt: fallback.asOf || fallback.updatedAt || new Date().toISOString(),
+          }, { headers: { "Cache-Control": "s-maxage=300, stale-while-revalidate=600" } });
+        }
+      } catch {
+        // Keep the original Yahoo error below, with the fallback failure explained.
+      }
+      throw new Error(`Yahoo Finance không có dữ liệu cho ${symbol} (đã thử ${yahooSymbols.join(", ")}${lastHttpStatus ? `; HTTP cuối: ${lastHttpStatus}` : ""}); nguồn dự phòng Vnstock cũng không trả dữ liệu. Kiểm tra cấu hình Python/Vnstock trên Vercel.`);
     }
 
     const q = result.indicators?.quote?.[0] || {};

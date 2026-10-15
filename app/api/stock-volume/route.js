@@ -42,7 +42,49 @@ export async function GET(request) {
     }
     const quote = result?.indicators?.quote?.[0];
     if (!result?.timestamp?.length || !quote) {
-      throw new Error(`Yahoo Finance không có dữ liệu khối lượng cho ${symbol} (đã thử ${yahooSymbols.join(", ")}${lastHttpStatus ? `; HTTP cuối: ${lastHttpStatus}` : ""}). Có thể mã HNX/UPCoM này chưa được Yahoo hỗ trợ.`);
+      // Use the same Vnstock fallback as the main stock analysis endpoint.
+      try {
+        const fallbackUrl = new URL("/api/vnstock", request.url);
+        fallbackUrl.searchParams.set("symbol", symbol);
+        const fallbackResponse = await fetch(fallbackUrl, {
+          headers: { Accept: "application/json" },
+          cache: "no-store",
+          signal: AbortSignal.timeout(20000),
+        });
+        const fallback = await fallbackResponse.json().catch(() => null);
+        const fallbackHistory = Array.isArray(fallback?.history) ? fallback.history : [];
+        const rows = fallbackHistory.map(r => ({
+          date: r.date,
+          open: Number.isFinite(Number(r.open)) ? Number(r.open) : null,
+          high: Number.isFinite(Number(r.high)) ? Number(r.high) : null,
+          low: Number.isFinite(Number(r.low)) ? Number(r.low) : null,
+          close: Number.isFinite(Number(r.close)) ? Number(r.close) : null,
+          volume: Number.isFinite(Number(r.volume)) ? Number(r.volume) : null,
+        })).filter(r => r.date && Number.isFinite(r.close) && Number.isFinite(r.volume))
+          .sort((a, b) => a.date.localeCompare(b.date));
+        if (fallbackResponse.ok && rows.length) {
+          const last = rows.at(-1);
+          const prev = rows.length > 1 ? rows.at(-2) : null;
+          const avgRows = rows.slice(-20);
+          const avgVolume20 = avgRows.reduce((sum, r) => sum + r.volume, 0) / avgRows.length;
+          const round = n => Number.isFinite(n) ? Number(n.toFixed(2)) : null;
+          return NextResponse.json({
+            symbol,
+            source: fallback.source || "Vnstock",
+            yahooSymbol: null,
+            updatedAt: fallback.asOf || last.date,
+            latest: { ...last, volume: Math.round(last.volume) },
+            previous: prev ? { date: prev.date, volume: Math.round(prev.volume) } : null,
+            avgVolume20: Math.round(avgVolume20),
+            volumeChangePct: prev && prev.volume > 0 ? round((last.volume / prev.volume - 1) * 100) : null,
+            volumeVsAvgPct: avgVolume20 > 0 ? round((last.volume / avgVolume20 - 1) * 100) : null,
+            history: rows.slice(-180),
+          }, { headers: { "Cache-Control": "s-maxage=300, stale-while-revalidate=600" } });
+        }
+      } catch {
+        // Keep the original Yahoo error below.
+      }
+      throw new Error(`Yahoo Finance không có dữ liệu khối lượng cho ${symbol} (đã thử ${yahooSymbols.join(", ")}${lastHttpStatus ? `; HTTP cuối: ${lastHttpStatus}` : ""}); Vnstock cũng không trả dữ liệu. Kiểm tra cấu hình Python/Vnstock trên Vercel.`);
     }
     const rows = result.timestamp.map((ts, i) => ({
       date: new Date(ts * 1000).toISOString().slice(0, 10),
