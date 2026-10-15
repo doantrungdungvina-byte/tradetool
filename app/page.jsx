@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import DonationSupport from "./components/DonationSupport";
 
 function translateTrend(value) {
@@ -20,6 +20,8 @@ const TABS = [
   { id: "dca", label: "🧮 DCA" },
   { id: "compound", label: "📈 LÃI KÉP" },
   { id: "calendar", label: "🗓️ LỊCH VẠN NIÊN" },
+  { id: "news", label: "📰 TIN TỨC" },
+  { id: "tax", label: "🧾 THUẾ TNCN" },
 ];
 
 const FX_SYMBOLS = [
@@ -251,8 +253,52 @@ function ShareApp() {
   );
 }
 
+function SummaryStrip() {
+  const [summary, setSummary] = useState(null);
+  const [summaryError, setSummaryError] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    const load = async () => {
+      try {
+        const res = await fetch("/api/market-summary", { cache: "no-store" });
+        if (!res.ok) throw new Error("Không tải được dữ liệu tổng quan");
+        const json = await res.json();
+        if (alive) { setSummary(json); setSummaryError(false); }
+      } catch {
+        if (alive) setSummaryError(true);
+      }
+    };
+    load();
+    const timer = setInterval(load, 5 * 60 * 1000);
+    return () => { alive = false; clearInterval(timer); };
+  }, []);
+  const money = (value, digits = 0) => Number.isFinite(value) ? value.toLocaleString("vi-VN", { maximumFractionDigits: digits, minimumFractionDigits: digits }) : "Đang cập nhật";
+  const percent = (value) => Number.isFinite(value) ? `${value > 0 ? "+" : ""}${value.toLocaleString("vi-VN", { maximumFractionDigits: 2, minimumFractionDigits: 2 })}%` : "—";
+  const cards = [
+    { key: "gold", icon: "🟡", title: "VÀNG SJC", value: summary?.goldSjc?.value ? `${money(summary.goldSjc.value)} đ/lượng` : "Đang cập nhật", sub: summary?.goldSjc?.note || "Giá mua/bán từ nguồn công khai SJC", source: summary?.goldSjc?.source },
+    { key: "usd", icon: "💱", title: "TỶ GIÁ USD/VND", value: summary?.usdVnd?.value ? `${money(summary.usdVnd.value, 0)} ₫` : "Đang cập nhật", sub: summary?.usdVnd ? `${percent(summary.usdVnd.changePct)} · tỷ giá tham khảo` : "Tỷ giá tham khảo", source: summary?.usdVnd?.source },
+    { key: "index", icon: "📈", title: "VN-INDEX", value: summary?.vnIndex?.price ? money(summary.vnIndex.price, 2) : "Đang cập nhật", sub: summary?.vnIndex ? `${percent(summary.vnIndex.changePct)} so với phiên trước` : "Chỉ số thị trường", source: summary?.vnIndex?.source },
+    { key: "vcb", icon: "🏦", title: "LÃI SUẤT VCB", value: summary?.vcbRate?.value ? `${money(summary.vcbRate.value, 2)}%/năm` : "Đang cập nhật", sub: summary?.vcbRate ? `Kỳ hạn ${summary.vcbRate.term || "tham khảo"}` : "Lãi suất tiền gửi tham khảo", source: summary?.vcbRate?.source },
+  ];
+  return <section className="market-summary" aria-label="Tóm tắt thị trường">
+    <div className="market-summary-head"><strong>📊 TỔNG QUAN THỊ TRƯỜNG</strong><span>{summary?.updatedAt ? `Cập nhật ${new Date(summary.updatedAt).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })}` : summaryError ? "Không kết nối được nguồn dữ liệu" : "Đang tải dữ liệu…"}</span></div>
+    <div className="market-summary-grid">{cards.map((card) => <article className="market-summary-card" key={card.key}>
+      <div className="market-summary-label"><span>{card.icon}</span><span>{card.title}</span></div>
+      <strong className="market-summary-value">{card.value}</strong>
+      <div className="market-summary-sub">{card.sub}</div>
+      {card.source && <div className="market-summary-source">Nguồn: {card.source}</div>}
+    </article>)}</div>
+    <p className="market-summary-note">Dữ liệu mang tính tham khảo; giá vàng SJC và lãi suất ngân hàng có thể chưa được cập nhật nếu nguồn công khai thay đổi.</p>
+  </section>;
+}
+
 export default function Home() {
   const [tab, setTab] = useState("stock");
+  const [taxGross, setTaxGross] = useState("10000000");
+  const [taxInsuranceSalary, setTaxInsuranceSalary] = useState("");
+  const [taxUseOtherInsurance, setTaxUseOtherInsurance] = useState(false);
+  const [taxRegion, setTaxRegion] = useState("I");
+  const [taxDependents, setTaxDependents] = useState("0");
   const [calendarViewDate, setCalendarViewDate] = useState(() => new Date());
   const [calendarSelectedDate, setCalendarSelectedDate] = useState(() => new Date());
   const [symbol, setSymbol] = useState("FPT");
@@ -512,6 +558,14 @@ export default function Home() {
           </button>
         ))}
       </nav>
+
+      {tab === "news" && (
+        <section className="panel news-market-panel">
+          <h2>📰 Tin tức &amp; Tổng quan thị trường</h2>
+          <p className="muted">Theo dõi nhanh giá vàng SJC, tỷ giá USD/VND, VN-Index và lãi suất Vietcombank tại cùng một nơi.</p>
+          <SummaryStrip />
+        </section>
+      )}
 
       {error && <div className="alert error"><strong>Không thể hoàn tất:</strong> {error}</div>}
 
@@ -871,6 +925,63 @@ export default function Home() {
           </div>
         </section>
       )}
+
+      {tab === "tax" && (() => {
+        const money = (value) => new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 0 }).format(Math.max(0, Math.round(value || 0))) + " ₫";
+        const gross = Math.max(0, Number(taxGross) || 0);
+        const insuranceBase = taxUseOtherInsurance ? Math.max(0, Number(taxInsuranceSalary) || 0) : gross;
+        // Ước tính phần bảo hiểm người lao động đóng: BHXH 8% + BHYT 1,5% + BHTN 1%.
+        const insurance = insuranceBase * 0.105;
+        const personalDeduction = 15500000;
+        const dependentDeduction = Math.max(0, Number(taxDependents) || 0) * 6200000;
+        const taxable = Math.max(0, gross - insurance - personalDeduction - dependentDeduction);
+        const brackets = [
+          { limit: 10000000, rate: 0.05 },
+          { limit: 30000000, rate: 0.10 },
+          { limit: 60000000, rate: 0.20 },
+          { limit: 100000000, rate: 0.30 },
+          { limit: Infinity, rate: 0.35 },
+        ];
+        let remaining = taxable;
+        let previous = 0;
+        let monthlyTax = 0;
+        for (const bracket of brackets) {
+          const portion = Math.max(0, Math.min(remaining, bracket.limit - previous));
+          monthlyTax += portion * bracket.rate;
+          remaining -= portion;
+          previous = bracket.limit;
+          if (remaining <= 0) break;
+        }
+        const net = gross - insurance - monthlyTax;
+        return <section className="panel tax-panel">
+          <h2>🧾 Công cụ tính Thuế thu nhập cá nhân</h2>
+          <p className="muted">Ước tính thuế TNCN theo tháng. Mức giảm trừ và biểu thuế đang đặt theo thông số hiển thị trong mẫu bạn gửi (áp dụng từ 01/01/2026); vui lòng đối chiếu quy định chính thức trước khi quyết toán.</p>
+          <div className="tax-rule-strip"><span>Giảm trừ bản thân <strong>15.500.000 ₫/tháng</strong></span><span>Người phụ thuộc <strong>6.200.000 ₫/người/tháng</strong></span></div>
+          <div className="tax-form-grid">
+            <label>Thu nhập trước thuế (Gross), VND
+              <input type="number" min="0" step="100000" value={taxGross} onChange={(e) => setTaxGross(e.target.value)} placeholder="Ví dụ: 10000000" />
+            </label>
+            <label>Mức lương đóng bảo hiểm, VND
+              <input type="number" min="0" step="100000" value={taxUseOtherInsurance ? taxInsuranceSalary : taxGross} onChange={(e) => setTaxInsuranceSalary(e.target.value)} disabled={!taxUseOtherInsurance} placeholder="Mặc định bằng lương Gross" />
+            </label>
+            <label>Vùng lương tối thiểu
+              <select value={taxRegion} onChange={(e) => setTaxRegion(e.target.value)}><option value="I">Vùng I</option><option value="II">Vùng II</option><option value="III">Vùng III</option><option value="IV">Vùng IV</option></select>
+            </label>
+            <label>Số người phụ thuộc
+              <input type="number" min="0" max="30" step="1" value={taxDependents} onChange={(e) => setTaxDependents(e.target.value)} />
+            </label>
+          </div>
+          <label className="tax-checkbox"><input type="checkbox" checked={taxUseOtherInsurance} onChange={(e) => { setTaxUseOtherInsurance(e.target.checked); if (!e.target.checked) setTaxInsuranceSalary(""); }} /> Mức lương đóng bảo hiểm khác với lương Gross</label>
+          <div className="tax-results">
+            <article className="tax-result"><span>Thu nhập chịu thuế sau giảm trừ</span><strong>{money(taxable)}</strong></article>
+            <article className="tax-result"><span>Bảo hiểm người lao động (ước tính 10,5%)</span><strong>{money(insurance)}</strong></article>
+            <article className="tax-result highlight"><span>Thuế TNCN tạm tính / tháng</span><strong>{money(monthlyTax)}</strong></article>
+            <article className="tax-result"><span>Lương thực nhận ước tính (Net)</span><strong>{money(net)}</strong></article>
+          </div>
+          <div className="tax-bracket-table"><h3>Biểu thuế lũy tiến tháng đang dùng</h3><div className="table-scroll"><table><thead><tr><th>Phần thu nhập tính thuế</th><th>Thuế suất</th></tr></thead><tbody><tr><td>Đến 10.000.000 ₫</td><td>5%</td></tr><tr><td>Trên 10.000.000 đến 30.000.000 ₫</td><td>10%</td></tr><tr><td>Trên 30.000.000 đến 60.000.000 ₫</td><td>20%</td></tr><tr><td>Trên 60.000.000 đến 100.000.000 ₫</td><td>30%</td></tr><tr><td>Trên 100.000.000 ₫</td><td>35%</td></tr></tbody></table></div></div>
+          <p className="muted">Vùng {taxRegion} được ghi nhận để tham khảo, chưa làm thay đổi phép tính thuế TNCN. Công cụ chưa tính các khoản miễn thuế, giảm trừ đặc thù, mức trần bảo hiểm và trường hợp quyết toán nhiều nguồn thu nhập; kết quả chỉ mang tính ước tính.</p>
+        </section>;
+      })()}
 
       {tab === "calendar" && (() => {
         const viewYear = calendarViewDate.getFullYear();

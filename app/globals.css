@@ -111,3 +111,24 @@ a{color:#1c62c5;text-decoration:none}a:hover{text-decoration:underline}
 .legend-holiday{width:7px;height:7px;border-radius:50%;background:#e69b28;margin-left:8px}
 .legend-lunar{display:inline-grid;place-items:center;width:20px;height:20px;border-radius:50%;background:#f2f4f8;color:#778197;margin-left:8px}
 @media(max-width:700px){.calendar-toolbar{grid-template-columns:1fr 1fr}.calendar-month-title{grid-column:1/-1;grid-row:1;font-size:18px}.calendar-grid{gap:3px}.calendar-cell{min-height:58px;border-radius:7px}.calendar-solar{font-size:16px}.calendar-lunar{font-size:10px}.calendar-detail{grid-template-columns:1fr}.calendar-weekday{font-size:10px;padding:7px 1px}.calendar-dot{right:4px;top:4px}}
+
+/* Tóm tắt thị trường bên dưới menu chính */
+.market-summary{margin:-10px 0 24px;padding:16px;background:linear-gradient(135deg,#fff,#f7f9fc);border:1px solid var(--line);border-radius:14px;box-shadow:0 5px 18px rgba(25,42,70,.035)}
+.market-summary-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px;font-size:12px;color:#273650}
+.market-summary-head span{font-size:11px;color:var(--muted);font-weight:400}
+.market-summary-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+.market-summary-card{min-width:0;border:1px solid #e5eaf2;border-radius:10px;background:#fff;padding:13px 14px}
+.market-summary-label{display:flex;align-items:center;gap:7px;color:#718096;font-size:11px;font-weight:750;letter-spacing:.25px}
+.market-summary-value{display:block;margin-top:9px;font-size:clamp(16px,1.7vw,22px);line-height:1.25;letter-spacing:-.35px;overflow-wrap:anywhere;color:#15223b}
+.market-summary-sub{font-size:11px;color:#6f7b90;margin-top:6px;line-height:1.45}
+.market-summary-source{font-size:10px;color:#9aa3b2;margin-top:5px}
+.market-summary-note{margin:10px 1px 0;color:#8993a4;font-size:10px;line-height:1.4}
+@media(max-width:900px){.market-summary-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:480px){.market-summary{padding:11px;margin-bottom:18px}.market-summary-grid{gap:7px}.market-summary-card{padding:10px}.market-summary-value{font-size:16px}.market-summary-head{align-items:flex-start;flex-direction:column;gap:4px}}
+
+.news-market-panel .market-summary{margin:16px 0 0;box-shadow:none}
+.news-market-panel>.muted{color:var(--muted);font-size:13px;margin:0 0 12px}
+
+
+/* Công cụ tính thuế TNCN */
+.tax-panel{min-height:unset}.tax-rule-strip{display:flex;gap:12px;flex-wrap:wrap;padding:14px 16px;margin:18px 0;background:#f0fbf3;border:1px solid #d5f0dc;border-radius:10px;color:#536578;font-size:13px}.tax-rule-strip strong{color:#168a5b;margin-left:5px}.tax-form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;margin:20px 0}.tax-checkbox{display:flex;flex-direction:row;align-items:center;gap:9px;margin:4px 0 20px}.tax-checkbox input{width:17px;height:17px;min-width:17px}.tax-results{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:22px 0}.tax-result{display:flex;flex-direction:column;gap:10px;border:1px solid var(--line);border-radius:12px;padding:17px;background:linear-gradient(145deg,#fff,#fbfcfe)}.tax-result span{font-size:12px;color:var(--muted)}.tax-result strong{font-size:clamp(19px,2vw,25px);overflow-wrap:anywhere}.tax-result.highlight{background:#effaf2;border-color:#cbeed5}.tax-result.highlight strong{color:#168a5b}.tax-bracket-table h3{margin:24px 0 12px}@media(max-width:650px){.tax-form-grid,.tax-results{grid-template-columns:1fr}.tax-rule-strip{flex-direction:column;gap:8px}}
