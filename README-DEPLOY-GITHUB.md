@@ -1,4 +1,4 @@
-# Trading Tools — GitHub + Vercel
+# TD Finance Tools — GitHub + Vercel
 
 ## What's included in this update
 - New `📈 LÃI KÉP` tab: initial capital, periodic contributions (monthly/quarterly), expected annual return, investment horizon, year-by-year projection, and an illustrative financial-independence target using the 4% rule.

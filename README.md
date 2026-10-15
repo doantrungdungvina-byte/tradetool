@@ -1,4 +1,4 @@
-# Trading Tools — Next.js + Vercel
+# TD Finance Tools — Next.js + Vercel
 
 Next.js App Router project for VN stock analysis, Forex/XAUUSD, foreign-flow status, and fund NAV lookup.
 

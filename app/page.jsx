@@ -215,7 +215,7 @@ function PriceChart({ data }) {
 function ShareApp() {
   const [copied, setCopied] = useState(false);
   const appUrl = "https://tradetool-delta.vercel.app";
-  const shareText = "Trading Tools — công cụ theo dõi thị trường, phân tích kỹ thuật, DCA và tính lãi kép.";
+  const shareText = "TD Finance Tools — công cụ tài chính, đầu tư, thuế và kinh doanh.";
   const zaloUrl = `https://zalo.me/share?url=${encodeURIComponent(appUrl)}&title=${encodeURIComponent(shareText)}`;
   const facebookUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(appUrl)}`;
   async function copyLink() {
@@ -238,14 +238,14 @@ function ShareApp() {
     <section className="share-app" aria-label="Chia sẻ ứng dụng">
       <div className="share-app-copy">
         <span className="share-app-icon" aria-hidden="true">↗</span>
-        <div><h3>Chia sẻ Trading Tools</h3><p>Gửi ứng dụng cho bạn bè qua Zalo hoặc Facebook.</p></div>
+        <div><h3>Chia sẻ TD Finance Tools</h3><p>Công cụ tài chính, đầu tư và kinh doanh trong một nền tảng.</p></div>
       </div>
       <div className="share-app-actions">
         <button type="button" className="share-btn share-copy" onClick={copyLink}>{copied ? "✓ Đã sao chép link" : "🔗 Sao chép link"}</button>
         <a className="share-btn share-zalo" href={zaloUrl} target="_blank" rel="noopener noreferrer">Zalo ↗</a>
         <a className="share-btn share-facebook" href={facebookUrl} target="_blank" rel="noopener noreferrer">f Facebook ↗</a>
         <button type="button" className="share-btn share-native" onClick={async () => {
-          if (navigator.share) { try { await navigator.share({ title: "Trading Tools", text: shareText, url: appUrl }); } catch {} }
+          if (navigator.share) { try { await navigator.share({ title: "TD Finance Tools", text: shareText, url: appUrl }); } catch {} }
           else await copyLink();
         }}>↗ Chia sẻ</button>
       </div>
@@ -524,10 +524,23 @@ export default function Home() {
   return (
     <main className="shell">
       <header className="hero">
-        <div className="brand-mark">↗</div>
+        <div className="brand-mark" aria-label="TD Finance Tools logo" role="img">
+          <svg viewBox="0 0 64 64" aria-hidden="true" focusable="false">
+            <rect x="9" y="6" width="46" height="52" rx="8" fill="#fffaf2" stroke="#172b4d" strokeWidth="3" />
+            <rect x="16" y="13" width="32" height="10" rx="2" fill="#172b4d" />
+            <g fill="#f29a38">
+              <rect x="17" y="29" width="7" height="7" rx="1.5" />
+              <rect x="28" y="29" width="7" height="7" rx="1.5" />
+              <rect x="17" y="40" width="7" height="7" rx="1.5" />
+              <rect x="28" y="40" width="7" height="7" rx="1.5" />
+            </g>
+            <path d="M36 47 L42 39 L47 42 L52 30" fill="none" stroke="#f29a38" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" />
+            <path d="M46 30 H52 V36" fill="none" stroke="#f29a38" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </div>
         <div>
-          <h1>Trading Tools</h1>
-          <p>Cổ phiếu Việt Nam • Forex / XAUUSD • Phân tích kỹ thuật • DCA • Lãi kép</p>
+          <h1>TD Finance Tools</h1>
+          <p>Công cụ tài chính • Đầu tư • Thuế TNCN • Kinh doanh • Lịch vạn niên</p>
         </div>
       </header>
 
@@ -1071,7 +1084,7 @@ export default function Home() {
       <ShareApp />
 
       <footer className="footer">
-        <span>Trading Tools</span>
+        <span>TD Finance Tools</span>
         <span>Dữ liệu tham khảo, không phải khuyến nghị đầu tư.</span>
       </footer>
     </main>

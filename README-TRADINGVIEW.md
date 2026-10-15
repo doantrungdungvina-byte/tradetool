@@ -1,4 +1,4 @@
-# Trading Tools — TradingView Advanced Chart XAUUSD
+# TD Finance Tools — TradingView Advanced Chart XAUUSD
 
 ## Thay đổi
 - Giữ nguyên các tab VN Stock, Forex/XAUUSD, Khối ngoại, Chứng chỉ quỹ và các API đang có.
