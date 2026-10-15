@@ -3,9 +3,8 @@
 import { useMemo, useState } from "react";
 
 const TABS = [
-  { id: "stock", label: "🇻🇳 VN STOCK" },
+  { id: "stock", label: "VN STOCK" },
   { id: "forex", label: "🌎 FX" },
-  { id: "foreign", label: "🌍 KHỐI NGOẠI" },
   { id: "funds", label: "📈 CHỨNG CHỈ QUỸ" },
   { id: "dca", label: "🧮 DCA" },
 ];
@@ -119,7 +118,6 @@ export default function Home() {
   const [fundSymbol, setFundSymbol] = useState("EVESG");
   const [marketData, setMarketData] = useState(null);
   const [fxData, setFxData] = useState(null);
-  const [foreignData, setForeignData] = useState(null);
   const [fundData, setFundData] = useState(null);
   const [stockVolumeData, setStockVolumeData] = useState(null);
   const [stockVolumeRange, setStockVolumeRange] = useState("3mo");
@@ -129,6 +127,9 @@ export default function Home() {
   const [dcaAsset, setDcaAsset] = useState("FPT");
   const [dcaCurrency, setDcaCurrency] = useState("VND");
   const [dcaCurrentPrice, setDcaCurrentPrice] = useState("");
+  const [dcaPriceLoading, setDcaPriceLoading] = useState(false);
+  const [dcaPriceUpdatedAt, setDcaPriceUpdatedAt] = useState("");
+  const [dcaPriceSource, setDcaPriceSource] = useState("");
   const [dcaRowsInput, setDcaRowsInput] = useState([{ id: 1, date: new Date().toISOString().slice(0, 10), quantity: "", price: "" }]);
   const [nextDcaId, setNextDcaId] = useState(2);
 
@@ -172,19 +173,33 @@ export default function Home() {
     }
   }
 
-  async function loadForeign() {
-    setLoading("foreign");
+  async function loadDcaLatestPrice() {
+    const asset = dcaAsset.trim().toUpperCase();
+    if (!asset) {
+      setError("Vui lòng nhập mã tài sản trước khi cập nhật giá.");
+      return;
+    }
+    setDcaPriceLoading(true);
     setError("");
-    setForeignData(null);
     try {
-      const res = await fetch(`/api/foreign?symbol=${encodeURIComponent(symbol.trim().toUpperCase())}`, { cache: "no-store" });
+      const isGold = asset === "XAUUSD";
+      const isForexOrCrypto = ["BTCUSD", "EURUSD", "GBPUSD", "USDJPY", "AUDUSD", "USDCAD", "USDCHF", "NZDUSD"].includes(asset);
+      const endpoint = isGold
+        ? `/api/xauusd?interval=${encodeURIComponent(xauInterval)}`
+        : `/api/market?symbol=${encodeURIComponent(asset)}&kind=${isForexOrCrypto ? "forex" : "stock"}`;
+      const res = await fetch(endpoint, { cache: "no-store" });
       const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "Nguồn miễn phí hiện chưa trả dữ liệu khối ngoại.");
-      setForeignData(json);
+      if (!res.ok) throw new Error(json.error || "Không lấy được giá mới nhất cho tài sản này.");
+      const price = Number(json.price);
+      if (!Number.isFinite(price) || price <= 0) throw new Error("Nguồn dữ liệu không trả về giá hợp lệ.");
+      setDcaCurrentPrice(String(price));
+      setDcaPriceUpdatedAt(json.updatedAt || new Date().toLocaleString("vi-VN"));
+      setDcaPriceSource(json.source || (isGold ? "Twelve Data" : "Yahoo Finance"));
+      setDcaCurrency(isForexOrCrypto || isGold ? "USD" : "VND");
     } catch (e) {
-      setError(e.message || "Không tải được dữ liệu khối ngoại.");
+      setError(e.message || "Không thể cập nhật giá DCA.");
     } finally {
-      setLoading("");
+      setDcaPriceLoading(false);
     }
   }
 
@@ -371,57 +386,27 @@ export default function Home() {
         </section>
       )}
 
-      {tab === "foreign" && (
-        <section className="panel">
-          <h2>🌍 Thống kê mua/bán khối ngoại</h2>
-          <p className="muted">Tra cứu theo mã. Ứng dụng không tự tạo số liệu khi nguồn miễn phí không cung cấp dữ liệu đáng tin cậy.</p>
-          <div className="form-grid">
-            <label>Mã cổ phiếu
-              <input value={symbol} onChange={(e) => setSymbol(e.target.value.toUpperCase())} placeholder="FPT" maxLength={12} />
-            </label>
-            <button className="primary action" disabled={loading === "foreign"} onClick={loadForeign}>
-              {loading === "foreign" ? "Đang kiểm tra..." : "🔎 TRA CỨU KHỐI NGOẠI"}
-            </button>
-          </div>
-          {foreignData && (
-            <>
-              <div className="metrics">
-                <Metric label="Khối lượng mua" value={fmt(foreignData.buyVolume, 0)} />
-                <Metric label="Khối lượng bán" value={fmt(foreignData.sellVolume, 0)} />
-                <Metric label="Mua/bán ròng" value={fmt(foreignData.netVolume, 0)} positive={foreignData.netVolume >= 0} />
-              </div>
-              <p className="muted">Phiên giao dịch: {foreignData.date || "Nguồn không cung cấp ngày"} · {foreignData.source}</p>
-              {(foreignData.buyValue != null || foreignData.sellValue != null || foreignData.netValue != null) && (
-                <div className="metrics">
-                  <Metric label="Giá trị mua" value={foreignData.buyValue == null ? "—" : fmt(foreignData.buyValue, 0)} />
-                  <Metric label="Giá trị bán" value={foreignData.sellValue == null ? "—" : fmt(foreignData.sellValue, 0)} />
-                  <Metric label="Giá trị ròng" value={foreignData.netValue == null ? "—" : fmt(foreignData.netValue, 0)} positive={foreignData.netValue == null ? undefined : foreignData.netValue >= 0} />
-                </div>
-              )}
-              <p className="muted">{foreignData.note}</p>
-            </>
-          )}
-          <div className="alert info">Nếu nguồn miễn phí không cung cấp lịch sử khối ngoại hoặc chặn truy cập, ứng dụng sẽ báo rõ thay vì hiển thị số liệu giả.</div>
-        </section>
-      )}
-
       {tab === "dca" && (
         <section className="panel">
           <h2>🧮 Tính giá vốn trung bình — DCA (Dollar-Cost Averaging)</h2>
           <p className="muted">Ghi lại từng lần mua cổ phiếu, vàng hoặc tài sản. Giá vốn được tính từ tổng tiền mua chia cho tổng số lượng, chưa bao gồm phí giao dịch và thuế.</p>
           <div className="form-grid">
             <label>Mã tài sản / tên danh mục
-              <input value={dcaAsset} onChange={(e) => setDcaAsset(e.target.value.toUpperCase())} placeholder="FPT, XAUUSD, BTC..." maxLength={20} />
+              <input value={dcaAsset} onChange={(e) => { setDcaAsset(e.target.value.toUpperCase()); setDcaCurrentPrice(""); setDcaPriceUpdatedAt(""); setDcaPriceSource(""); }} placeholder="FPT, XAUUSD, BTC..." maxLength={20} />
             </label>
             <label>Đơn vị tiền tệ
               <select value={dcaCurrency} onChange={(e) => setDcaCurrency(e.target.value)}>
                 <option value="VND">VND</option><option value="USD">USD</option>
               </select>
             </label>
-            <label>Giá hiện tại (không bắt buộc)
-              <input type="number" min="0" step="any" value={dcaCurrentPrice} onChange={(e) => setDcaCurrentPrice(e.target.value)} placeholder="Nhập giá để tính lãi/lỗ" />
+            <label>Giá thị trường hiện tại
+              <input type="number" min="0" step="any" value={dcaCurrentPrice} onChange={(e) => setDcaCurrentPrice(e.target.value)} placeholder="Bấm cập nhật để lấy giá mới nhất" />
             </label>
+            <button className="primary action" disabled={dcaPriceLoading || !dcaAsset.trim()} onClick={loadDcaLatestPrice}>
+              {dcaPriceLoading ? "Đang cập nhật giá..." : "↻ CẬP NHẬT GIÁ MỚI NHẤT"}
+            </button>
           </div>
+          {dcaPriceUpdatedAt && <p className="muted">Giá {dcaAsset.toUpperCase()}: {fmt(dcaCurrentPrice, 4)} {dcaCurrency} · Nguồn: {dcaPriceSource || "API thị trường"} · Cập nhật: {dcaPriceUpdatedAt}. Giá có thể trễ theo nguồn cung cấp.</p>}
           <h3>Lịch sử mua</h3>
           <div className="table-scroll"><table>
             <thead><tr><th>Ngày mua</th><th>Khối lượng</th><th>Giá mua / đơn vị</th><th>Thành tiền</th><th></th></tr></thead>
@@ -439,7 +424,7 @@ export default function Home() {
           </table></div>
           <div className="button-row" style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 12 }}>
             <button className="primary" onClick={() => { setDcaRowsInput(rows => [...rows, { id: nextDcaId, date: new Date().toISOString().slice(0, 10), quantity: "", price: "" }]); setNextDcaId(id => id + 1); }}>＋ Thêm lần mua</button>
-            <button className="secondary" onClick={() => { setDcaRowsInput([{ id: nextDcaId, date: new Date().toISOString().slice(0, 10), quantity: "", price: "" }]); setNextDcaId(id => id + 1); setDcaCurrentPrice(""); }}>Làm mới bảng</button>
+            <button className="secondary" onClick={() => { setDcaRowsInput([{ id: nextDcaId, date: new Date().toISOString().slice(0, 10), quantity: "", price: "" }]); setNextDcaId(id => id + 1); setDcaCurrentPrice(""); setDcaPriceUpdatedAt(""); setDcaPriceSource(""); }}>Làm mới bảng</button>
             <button className="secondary" disabled={!dcaValidRows.length} onClick={() => { const rows = [["Ma tai san", dcaAsset], ["Ngay mua", "Khoi luong", "Gia mua", "Thanh tien"], ...dcaValidRows.map(r => [r.date, r.quantity, r.price, r.quantity * r.price])]; const csv = "\uFEFF" + rows.map(row => row.map(v => `"${String(v ?? "").replaceAll('"', '""')}"`).join(",")).join("\n"); const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8;" })); const a = document.createElement("a"); a.href = url; a.download = `${dcaAsset || "dca"}_lich_su_mua.csv`; a.click(); URL.revokeObjectURL(url); }}>📥 Xuất CSV</button>
           </div>
           <h3>Tổng hợp danh mục {dcaAsset && `— ${dcaAsset}`}</h3>
