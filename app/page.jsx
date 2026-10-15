@@ -71,7 +71,7 @@ const FUNDS = [
 const fmt = (n, digits = 2) =>
   n == null || !Number.isFinite(Number(n))
     ? "—"
-    : Number(n).toLocaleString("vi-VN", { maximumFractionDigits: digits, minimumFractionDigits: digits });
+    : Number(n).toLocaleString("vi-VN", { maximumFractionDigits: digits, minimumFractionDigits: 0 });
 
 function Metric({ label, value, sub, positive }) {
   return (
@@ -127,6 +127,7 @@ export default function Home() {
   const [dcaAsset, setDcaAsset] = useState("FPT");
   const [dcaCurrency, setDcaCurrency] = useState("VND");
   const [dcaCurrentPrice, setDcaCurrentPrice] = useState("");
+  const [dcaTargetPrice, setDcaTargetPrice] = useState("");
   const [dcaPriceLoading, setDcaPriceLoading] = useState(false);
   const [dcaPriceUpdatedAt, setDcaPriceUpdatedAt] = useState("");
   const [dcaPriceSource, setDcaPriceSource] = useState("");
@@ -241,6 +242,11 @@ export default function Home() {
   const dcaNowPrice = Number(dcaCurrentPrice) > 0 ? Number(dcaCurrentPrice) : null;
   const dcaMarketValue = dcaNowPrice != null ? dcaNowPrice * dcaTotalQuantity : null;
   const dcaProfit = dcaMarketValue != null ? dcaMarketValue - dcaTotalCost : null;
+  const dcaTarget = Number(dcaTargetPrice) > 0 ? Number(dcaTargetPrice) : null;
+  const dcaEstimatedBuyQty = dcaProfit != null && dcaProfit < 0 && dcaTotalQuantity > 0 && dcaNowPrice != null && dcaTarget != null && dcaTarget > dcaNowPrice && dcaTarget < dcaAveragePrice
+    ? Math.ceil((dcaTotalCost - dcaTarget * dcaTotalQuantity) / (dcaTarget - dcaNowPrice))
+    : null;
+  const dcaEstimatedBuyCost = dcaEstimatedBuyQty != null && dcaNowPrice != null ? dcaEstimatedBuyQty * dcaNowPrice : null;
 
   return (
     <main className="shell">
@@ -402,6 +408,9 @@ export default function Home() {
             <label>Giá thị trường hiện tại
               <input type="number" min="0" step="any" value={dcaCurrentPrice} onChange={(e) => setDcaCurrentPrice(e.target.value)} placeholder="Bấm cập nhật để lấy giá mới nhất" />
             </label>
+            <label>Giá mục tiêu hồi phục để hòa vốn
+              <input type="number" min="0" step="any" value={dcaTargetPrice} onChange={(e) => setDcaTargetPrice(e.target.value)} placeholder="Nhập giá kỳ vọng hồi phục" />
+            </label>
             <button className="primary action" disabled={dcaPriceLoading || !dcaAsset.trim()} onClick={loadDcaLatestPrice}>
               {dcaPriceLoading ? "Đang cập nhật giá..." : "↻ CẬP NHẬT GIÁ MỚI NHẤT"}
             </button>
@@ -436,6 +445,12 @@ export default function Home() {
             <Metric label="Lãi / lỗ tạm tính" value={dcaProfit == null ? "—" : `${dcaProfit > 0 ? "+" : ""}${fmt(dcaProfit, 2)} ${dcaCurrency}`} positive={dcaProfit == null ? undefined : dcaProfit >= 0} />
             <Metric label="Biến động so với vốn" value={dcaProfit == null || dcaTotalCost <= 0 ? "—" : `${fmt(dcaProfit / dcaTotalCost * 100)}%`} positive={dcaProfit == null ? undefined : dcaProfit >= 0} />
           </div>
+          {dcaProfit != null && dcaProfit < 0 && (
+            <div className="metrics" style={{ marginTop: 12 }}>
+              <Metric label="Số lượng mua ước tính để hòa vốn" value={dcaEstimatedBuyQty == null ? "Nhập giá mục tiêu cao hơn giá hiện tại và thấp hơn giá vốn TB" : fmt(dcaEstimatedBuyQty, 6)} />
+              <Metric label="Vốn mua bổ sung ước tính" value={dcaEstimatedBuyCost == null ? "—" : `${fmt(dcaEstimatedBuyCost)} ${dcaCurrency}`} />
+            </div>
+          )}
           <div className="alert info" style={{ marginTop: 16 }}>Công thức: Tổng vốn = Σ (khối lượng × giá mua); giá vốn trung bình = tổng vốn ÷ tổng khối lượng. Chỉ tính các dòng có cả khối lượng và giá mua lớn hơn 0. Lãi/lỗ chưa tính phí, thuế và cổ tức.</div>
         </section>
       )}
