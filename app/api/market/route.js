@@ -209,6 +209,99 @@ export async function GET(request) {
       } catch {
         // Keep the original Yahoo error below, with the fallback failure explained.
       }
+
+      // Last-resort fallback for Vietnamese stocks: TradingView scanner.
+      // This provides a current quote and technical snapshot (not historical OHLCV).
+      if (kind === "stock") {
+        try {
+          const exchanges = ["HNX", "HOSE", "UPCOM"];
+          const tickers = exchanges.map(ex => `${ex}:${symbol}`);
+          const tvResponse = await fetch("https://scanner.tradingview.com/vietnam/scan", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Accept: "application/json" },
+            body: JSON.stringify({
+              symbols: { tickers, query: { types: [] } },
+              columns: [
+                "close", "change", "Perf.W", "Perf.1M", "volume",
+                "average_volume_10d_calc", "RSI", "EMA9", "EMA21", "EMA50",
+                "EMA200", "MACD.macd", "MACD.signal", "BB.upper", "BB.lower",
+                "ATR", "price_52_week_high", "price_52_week_low", "name"
+              ]
+            }),
+            signal: AbortSignal.timeout(12000),
+            cache: "no-store",
+          });
+          if (tvResponse.ok) {
+            const tvPayload = await tvResponse.json();
+            const tvRows = Array.isArray(tvPayload?.data) ? tvPayload.data : [];
+            const tvRow = tvRows.find(row => row?.d && Number.isFinite(Number(row.d[0])));
+            if (tvRow) {
+              const d = tvRow.d;
+              const tvNum = value => value === null || value === undefined || value === "" ? null : (Number.isFinite(Number(value)) ? Number(value) : null);
+              const close = tvNum(d[0]);
+              const changePct = tvNum(d[1]);
+              const volume = tvNum(d[4]);
+              const avgVolume10 = tvNum(d[5]);
+              const rsi14 = tvNum(d[6]);
+              const ema9 = tvNum(d[7]);
+              const ema21 = tvNum(d[8]);
+              const ma50 = tvNum(d[9]);
+              const ma200 = tvNum(d[10]);
+              const macd = tvNum(d[11]);
+              const macdSignal = tvNum(d[12]);
+              const bbUpper = tvNum(d[13]);
+              const bbLower = tvNum(d[14]);
+              const atr = tvNum(d[15]);
+              const high52 = tvNum(d[16]);
+              const low52 = tvNum(d[17]);
+              const trend = ema9 !== null && ema21 !== null && ma50 !== null && ma200 !== null
+                ? (ema9 > ema21 && ema21 > ma50 && ma50 > ma200 ? "Tăng"
+                  : ema9 < ema21 && ema21 < ma50 && ma50 < ma200 ? "Giảm" : "Đi ngang / chưa rõ")
+                : "Đi ngang / chưa rõ";
+              const technicalSummary = [
+                `Nguồn dữ liệu: TradingView Scanner (${tvRow.s || "mã cổ phiếu Việt Nam"}).`,
+                trend === "Tăng" ? "EMA9 > EMA21 > EMA50 > EMA200: xu hướng kỹ thuật nghiêng tăng." :
+                  trend === "Giảm" ? "EMA9 < EMA21 < EMA50 < EMA200: xu hướng kỹ thuật nghiêng giảm." :
+                  "Các đường EMA chưa đồng thuận rõ ràng.",
+                rsi14 !== null && rsi14 >= 70 ? "RSI đang ở vùng quá mua." :
+                  rsi14 !== null && rsi14 <= 30 ? "RSI đang ở vùng quá bán." : "RSI chưa ở vùng cực đoan hoặc không có dữ liệu.",
+                "TradingView Scanner chỉ cung cấp ảnh chụp chỉ báo; lịch sử giá không có trong nguồn dự phòng này."
+              ];
+              const levels = [
+                { label: "Giảm 3%", price: round(close * 0.97), basis: "Giá hiện tại -3%", dropPct: 3 },
+                { label: "Giảm 6%", price: round(close * 0.94), basis: "Giá hiện tại -6%", dropPct: 6 },
+                { label: "Giảm 10%", price: round(close * 0.90), basis: "Giá hiện tại -10%", dropPct: 10 },
+              ];
+              return NextResponse.json({
+                symbol,
+                yahooSymbol: null,
+                currency: "VND",
+                price: round(close),
+                changePct: round(changePct),
+                indicators: {
+                  ma20: null, ma50: round(ma50), ma200: round(ma200), rsi14: round(rsi14),
+                  atr14: round(atr), atrPct: atr !== null && close ? round(atr / close * 100) : null,
+                  macd: round(macd), bollingerUpper: round(bbUpper), bollingerLower: round(bbLower),
+                  support20: round(low52), resistance20: round(high52),
+                  ema9: round(ema9), ema21: round(ema21),
+                  volume, averageVolume10: avgVolume10,
+                  volumeVsAvgPct: volume !== null && avgVolume10 ? round((volume / avgVolume10 - 1) * 100) : null,
+                  weeklyChangePct: round(tvNum(d[2])), monthlyChangePct: round(tvNum(d[3])),
+                },
+                analysis: { trend, technicalSummary },
+                fundamentals: emptyFundamentals(),
+                levels,
+                history: [],
+                source: "TradingView Scanner",
+                updatedAt: new Date().toISOString(),
+                note: "Nguồn dự phòng chỉ có giá/chỉ báo hiện tại; không có lịch sử OHLCV."
+              }, { headers: { "Cache-Control": "s-maxage=300, stale-while-revalidate=600" } });
+            }
+          }
+        } catch {
+          // Preserve the Yahoo/Vnstock failure details if TradingView also fails.
+        }
+      }
       throw new Error(`Yahoo Finance không có dữ liệu cho ${symbol} (đã thử ${yahooSymbols.join(", ")}${lastHttpStatus ? `; HTTP cuối: ${lastHttpStatus}` : ""}); nguồn dự phòng Vnstock cũng không trả dữ liệu. Kiểm tra cấu hình Python/Vnstock trên Vercel.`);
     }
 
