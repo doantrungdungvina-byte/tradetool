@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 
 const TABS = [
   { id: "stock", label: "VN STOCK" },
-  { id: "forex", label: "🌎 FOREX / XAUUSD" },
+  { id: "forex", label: "🌎 FX" },
   { id: "funds", label: "📈 CHỨNG CHỈ QUỸ" },
 ];
 
@@ -71,6 +71,68 @@ const fmt = (n, digits = 2) =>
   n == null || !Number.isFinite(Number(n))
     ? "—"
     : Number(n).toLocaleString("vi-VN", { maximumFractionDigits: digits, minimumFractionDigits: digits });
+
+const firstDefined = (...values) => values.find((value) =>
+  value !== undefined && value !== null && value !== "" && Number.isFinite(Number(value))
+);
+
+function getStockFundamentals(data) {
+  const f = data?.fundamentals || data?.valuation || data?.financials || {};
+  const dividend = data?.dividend || data?.dividends || f?.dividend || {};
+  return {
+    pe: firstDefined(data?.pe, data?.trailingPE, data?.trailingPe, data?.priceEarningsRatio, f?.pe, f?.trailingPE, f?.trailingPe),
+    pb: firstDefined(data?.pb, data?.priceToBook, data?.priceToBookRatio, f?.pb, f?.priceToBook, f?.priceToBookRatio),
+    dividendYield: firstDefined(
+      data?.dividendYield, data?.dividend_yield, data?.dividendYieldPct,
+      dividend?.yield, dividend?.yieldPct, dividend?.dividendYield,
+      f?.dividendYield, f?.dividend_yield
+    ),
+    dividendPerShare: firstDefined(
+      data?.dividendPerShare, data?.dividend_per_share,
+      dividend?.perShare, dividend?.amount, f?.dividendPerShare
+    ),
+    dividendRate: firstDefined(data?.dividendRate, dividend?.rate, f?.dividendRate),
+    dividendDate: data?.dividendDate || data?.exDividendDate || data?.ex_dividend_date ||
+      dividend?.date || dividend?.exDate || f?.dividendDate || null,
+    source: f?.source || data?.fundamentalSource || data?.source || "API thị trường",
+  };
+}
+
+function getPeAssessment(pe) {
+  if (pe == null || !Number.isFinite(Number(pe)) || Number(pe) <= 0) {
+    return {
+      label: "Chưa đủ dữ liệu",
+      detail: "P/E không hợp lệ hoặc doanh nghiệp đang lỗ; không thể kết luận cổ phiếu rẻ chỉ từ chỉ số này.",
+      tone: "neutral",
+    };
+  }
+  if (Number(pe) < 10) {
+    return {
+      label: "P/E thấp",
+      detail: "Có thể đưa vào danh sách nghiên cứu thêm. Kiểm tra lợi nhuận có bền vững không, nợ vay, dòng tiền, ngành và các khoản lợi nhuận bất thường trước khi mua.",
+      tone: "good",
+    };
+  }
+  if (Number(pe) < 15) {
+    return {
+      label: "P/E tương đối thấp",
+      detail: "Có thể hấp dẫn nếu doanh nghiệp có chất lượng tốt và triển vọng ổn định. So sánh với trung bình ngành và lịch sử P/E của chính cổ phiếu.",
+      tone: "neutral",
+    };
+  }
+  if (Number(pe) <= 25) {
+    return {
+      label: "P/E trung bình đến cao",
+      detail: "Đánh giá thêm tốc độ tăng trưởng lợi nhuận, ROE, dòng tiền và mức định giá của ngành.",
+      tone: "neutral",
+    };
+  }
+  return {
+    label: "P/E cao",
+    detail: "Cần tăng trưởng lợi nhuận tương xứng để biện minh cho định giá. Tránh kết luận đắt/rẻ nếu chưa so sánh cùng ngành.",
+    tone: "warning",
+  };
+}
 
 function Metric({ label, value, sub, positive }) {
   return (
@@ -212,6 +274,8 @@ export default function Home() {
 
   const change = marketData?.changePct;
   const fxChange = fxData?.changePct;
+  const stockFundamentals = getStockFundamentals(marketData);
+  const peAssessment = getPeAssessment(stockFundamentals.pe);
   const capitalNumber = Math.max(Number(capital) || 0, 0);
   const dcaRows = useMemo(() => {
     if (!marketData?.levels || !capitalNumber) return [];
@@ -266,6 +330,43 @@ export default function Home() {
                 <Metric label="MA20" value={fmt(marketData.indicators.ma20)} />
                 <Metric label="MA50" value={fmt(marketData.indicators.ma50)} />
               </div>
+              <section className="panel fundamentals-panel" style={{ marginTop: 20 }}>
+                <h3>📘 Định giá cơ bản &amp; cổ tức</h3>
+                <p className="muted">
+                  Chỉ số phụ thuộc dữ liệu API và kỳ báo cáo. “—” nghĩa là nguồn hiện tại chưa trả dữ liệu; không tự suy đoán số liệu.
+                </p>
+                <div className="metrics">
+                  <Metric
+                    label="P/E"
+                    value={stockFundamentals.pe == null ? "—" : `${fmt(stockFundamentals.pe)} lần`}
+                    sub="Giá / lợi nhuận trên mỗi cổ phiếu"
+                  />
+                  <Metric
+                    label="P/B"
+                    value={stockFundamentals.pb == null ? "—" : `${fmt(stockFundamentals.pb)} lần`}
+                    sub="Giá / giá trị sổ sách mỗi cổ phiếu"
+                  />
+                  <Metric
+                    label="Tỷ suất cổ tức"
+                    value={stockFundamentals.dividendYield == null ? "—" : `${fmt(stockFundamentals.dividendYield)}%`}
+                    sub="Tỷ lệ cổ tức so với giá cổ phiếu"
+                  />
+                  <Metric
+                    label="Cổ tức / cổ phiếu"
+                    value={stockFundamentals.dividendPerShare == null
+                      ? (stockFundamentals.dividendRate == null ? "—" : `${fmt(stockFundamentals.dividendRate)} đ`)
+                      : `${fmt(stockFundamentals.dividendPerShare)} đ`}
+                    sub={stockFundamentals.dividendDate ? `Ngày GDKHQ / cập nhật: ${stockFundamentals.dividendDate}` : "Theo dữ liệu API nếu có"}
+                  />
+                </div>
+                <div className={`alert ${peAssessment.tone === "good" ? "info" : peAssessment.tone === "warning" ? "error" : "info"}`}>
+                  <strong>Đánh giá P/E: {peAssessment.label}.</strong> {peAssessment.detail}
+                </div>
+                <p className="muted">
+                  Nguồn chỉ số cơ bản: {stockFundamentals.source}. P/E thấp không đồng nghĩa cổ phiếu chắc chắn bị định giá thấp; cần đối chiếu P/B, chất lượng lợi nhuận, nợ, dòng tiền, triển vọng và mặt bằng ngành.
+                </p>
+              </section>
+
               <PriceChart data={marketData.history} />
               <section className="panel" style={{ marginTop: 20 }}>
                 <h3>📊 Thống kê khối lượng giao dịch</h3>
