@@ -22,6 +22,7 @@ const TABS = [
   { id: "calendar", label: "🗓️ LỊCH VẠN NIÊN" },
   { id: "news", label: "📰 TIN TỨC" },
   { id: "tax", label: "🧾 THUẾ TNCN" },
+  { id: "business", label: "🏪 KINH DOANH" },
 ];
 
 const FX_SYMBOLS = [
@@ -300,6 +301,24 @@ export default function Home() {
   const [taxRegion, setTaxRegion] = useState("I");
   const [taxDependents, setTaxDependents] = useState("0");
   const [taxCalculated, setTaxCalculated] = useState(false);
+  const [businessFixedCosts, setBusinessFixedCosts] = useState([
+    { name: "Mặt bằng / thuê địa điểm", amount: "10000000" },
+    { name: "Điện", amount: "1000000" },
+    { name: "Nước", amount: "500000" },
+    { name: "Internet / điện thoại", amount: "500000" },
+    { name: "Lương nhân viên", amount: "0" },
+    { name: "Marketing / quảng cáo", amount: "1000000" },
+    { name: "Phần mềm / chi phí khác", amount: "500000" },
+  ]);
+  const [businessVariableCosts, setBusinessVariableCosts] = useState([
+    { name: "Nguyên liệu chính", amount: "7000" },
+    { name: "Bao bì / chai / ly", amount: "1500" },
+    { name: "Nhãn mác / tem", amount: "500" },
+    { name: "Vận chuyển / phí bán hàng", amount: "1000" },
+  ]);
+  const [businessProductPrice, setBusinessProductPrice] = useState("30000");
+  const [businessDaysPerMonth, setBusinessDaysPerMonth] = useState("30");
+  const [businessCalculated, setBusinessCalculated] = useState(false);
   const [calendarViewDate, setCalendarViewDate] = useState(() => new Date());
   const [calendarSelectedDate, setCalendarSelectedDate] = useState(() => new Date());
   const [symbol, setSymbol] = useState("FPT");
@@ -926,6 +945,69 @@ export default function Home() {
           </div>
         </section>
       )}
+
+      {tab === "business" && (() => {
+        const money = (value) => new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 0 }).format(Math.max(0, Math.round(Number(value) || 0))) + " ₫";
+        const totalFixed = businessFixedCosts.reduce((sum, item) => sum + Math.max(0, Number(item.amount) || 0), 0);
+        const variablePerUnit = businessVariableCosts.reduce((sum, item) => sum + Math.max(0, Number(item.amount) || 0), 0);
+        const price = Math.max(0, Number(businessProductPrice) || 0);
+        const margin = price - variablePerUnit;
+        const days = Math.max(1, Math.min(31, Number(businessDaysPerMonth) || 30));
+        const viable = margin > 0;
+        const monthlyUnits = viable ? Math.ceil(totalFixed / margin) : 0;
+        const dailyUnits = viable ? Math.ceil(monthlyUnits / days) : 0;
+        const monthlyRevenue = monthlyUnits * price;
+        const updateCost = (setter, list, index, field, value) => setter(list.map((item, i) => i === index ? { ...item, [field]: value } : item));
+        return <section className="panel business-panel">
+          <h2>🏪 Công cụ tính điểm hòa vốn kinh doanh</h2>
+          <p className="muted">Liệt kê chi phí cố định theo tháng, chi phí biến đổi cho mỗi sản phẩm và giá bán. Công cụ tính số sản phẩm cần bán để doanh thu đủ bù đắp chi phí.</p>
+          <div className="business-cost-section">
+            <div className="business-section-heading"><div><h3>1. Chi phí cố định hàng tháng</h3><p className="muted">Ví dụ: mặt bằng, điện, nước, internet, lương, marketing…</p></div><strong>Tổng: {money(totalFixed)}</strong></div>
+            <div className="business-cost-list">
+              {businessFixedCosts.map((item, index) => <div className="business-cost-row" key={`fixed-${index}`}>
+                <input aria-label={`Tên chi phí cố định ${index + 1}`} value={item.name} onChange={(e) => updateCost(setBusinessFixedCosts, businessFixedCosts, index, "name", e.target.value)} placeholder="Tên chi phí" />
+                <input aria-label={`Số tiền chi phí cố định ${index + 1}`} type="number" min="0" value={item.amount} onChange={(e) => updateCost(setBusinessFixedCosts, businessFixedCosts, index, "amount", e.target.value)} placeholder="VND/tháng" />
+                <button type="button" className="business-remove" aria-label="Xóa chi phí" onClick={() => { setBusinessFixedCosts(businessFixedCosts.filter((_, i) => i !== index)); setBusinessCalculated(false); }}>×</button>
+              </div>)}
+            </div>
+            <button type="button" className="secondary business-add" onClick={() => { setBusinessFixedCosts([...businessFixedCosts, { name: "Chi phí mới", amount: "0" }]); setBusinessCalculated(false); }}>＋ Thêm chi phí cố định</button>
+          </div>
+          <div className="business-cost-section">
+            <div className="business-section-heading"><div><h3>2. Chi phí cho một sản phẩm</h3><p className="muted">Ví dụ: nguyên liệu, bao bì, chai/ly, tem nhãn, phí vận chuyển…</p></div><strong>{money(variablePerUnit)} / sản phẩm</strong></div>
+            <div className="business-cost-list">
+              {businessVariableCosts.map((item, index) => <div className="business-cost-row" key={`variable-${index}`}>
+                <input aria-label={`Tên chi phí sản phẩm ${index + 1}`} value={item.name} onChange={(e) => updateCost(setBusinessVariableCosts, businessVariableCosts, index, "name", e.target.value)} placeholder="Tên chi phí" />
+                <input aria-label={`Số tiền chi phí sản phẩm ${index + 1}`} type="number" min="0" value={item.amount} onChange={(e) => updateCost(setBusinessVariableCosts, businessVariableCosts, index, "amount", e.target.value)} placeholder="VND/sản phẩm" />
+                <button type="button" className="business-remove" aria-label="Xóa chi phí sản phẩm" onClick={() => { setBusinessVariableCosts(businessVariableCosts.filter((_, i) => i !== index)); setBusinessCalculated(false); }}>×</button>
+              </div>)}
+            </div>
+            <button type="button" className="secondary business-add" onClick={() => { setBusinessVariableCosts([...businessVariableCosts, { name: "Chi phí mới", amount: "0" }]); setBusinessCalculated(false); }}>＋ Thêm chi phí sản phẩm</button>
+          </div>
+          <div className="business-form-grid">
+            <label>Giá bán một sản phẩm (VND)
+              <input type="number" min="0" step="1000" value={businessProductPrice} onChange={(e) => { setBusinessProductPrice(e.target.value); setBusinessCalculated(false); }} placeholder="Ví dụ: 30000" />
+            </label>
+            <label>Số ngày kinh doanh trong tháng
+              <input type="number" min="1" max="31" step="1" value={businessDaysPerMonth} onChange={(e) => { setBusinessDaysPerMonth(e.target.value); setBusinessCalculated(false); }} />
+            </label>
+          </div>
+          <div className="business-summary-strip">
+            <span>Chi phí cố định: <strong>{money(totalFixed)}</strong> / tháng</span>
+            <span>Chi phí biến đổi: <strong>{money(variablePerUnit)}</strong> / sản phẩm</span>
+            <span>Lãi góp mỗi sản phẩm: <strong className={margin > 0 ? "business-positive" : "business-negative"}>{money(margin)}</strong></span>
+          </div>
+          <button type="button" className="primary business-calculate-button" onClick={() => setBusinessCalculated(true)}>🧮 TÍNH ĐIỂM HÒA VỐN</button>
+          {!businessCalculated ? <p className="muted tax-hint">Nhập các khoản chi phí và giá bán, sau đó nhấn “TÍNH ĐIỂM HÒA VỐN”.</p> : !viable ? <div className="alert error">Giá bán phải cao hơn tổng chi phí cho một sản phẩm ({money(variablePerUnit)}). Hãy điều chỉnh giá bán hoặc chi phí để có thể tính hòa vốn.</div> : <>
+            <div className="business-results" aria-live="polite">
+              <article className="business-result"><span>Số lượng cần bán để hòa vốn</span><strong>{monthlyUnits.toLocaleString("vi-VN")} sản phẩm/tháng</strong></article>
+              <article className="business-result highlight"><span>Số lượng cần bán trung bình mỗi ngày</span><strong>{dailyUnits.toLocaleString("vi-VN")} sản phẩm/ngày</strong><small>Đã làm tròn lên để đạt điểm hòa vốn trong {days} ngày</small></article>
+              <article className="business-result"><span>Doanh thu hòa vốn theo số lượng nguyên</span><strong>{money(monthlyRevenue)}</strong><small>{monthlyUnits.toLocaleString("vi-VN")} sản phẩm × {money(price)}</small></article>
+              <article className="business-result"><span>Lãi góp trên mỗi sản phẩm</span><strong>{money(margin)}</strong><small>Giá bán trừ chi phí biến đổi</small></article>
+            </div>
+            <div className="business-formula"><strong>Công thức áp dụng</strong><p>Số lượng hòa vốn/tháng = Chi phí cố định tháng ÷ (Giá bán − Chi phí biến đổi/sản phẩm)</p><p>Doanh thu hòa vốn = Số lượng hòa vốn đã làm tròn lên × Giá bán</p><p className="muted">Kết quả là ước tính, chưa bao gồm thuế, lãi vay, hao hụt, hàng tồn kho hoặc các chi phí chưa nhập.</p></div>
+          </>}
+        </section>;
+      })()}
 
       {tab === "tax" && (() => {
         const money = (value) => new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 0 }).format(Math.max(0, Math.round(value || 0))) + " ₫";
