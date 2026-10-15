@@ -29,8 +29,6 @@ function parseNumber(value) {
     return null;
   }
 
-  // These columns are expected to contain integer values.
-  // Remove common thousands separators.
   s = s.replace(/[.,]/g, "");
 
   if (!/^-?\d+$/.test(s)) {
@@ -38,7 +36,6 @@ function parseNumber(value) {
   }
 
   const number = Number(s);
-
   return Number.isSafeInteger(number) ? number : null;
 }
 
@@ -77,40 +74,58 @@ function findHeader(headers, patterns) {
 }
 
 function getTableHeaders($, table) {
-  const headers = [];
+  const rows = $(table).find("thead tr");
+
+  if (rows.length) {
+    const matrix = [];
+
+    rows.each((_, tr) => {
+      const row = [];
+
+      $(tr).children("th, td").each((__, cell) => {
+        const text = $(cell).text().trim();
+        const colspan = Math.max(
+          1,
+          Number($(cell).attr("colspan")) || 1
+        );
+
+        for (let i = 0; i < colspan; i++) {
+          row.push(text);
+        }
+      });
+
+      matrix.push(row);
+    });
+
+    const width = Math.max(
+      0,
+      ...matrix.map((row) => row.length)
+    );
+
+    return Array.from({ length: width }, (_, col) =>
+      matrix
+        .map((row) => row[col])
+        .filter(Boolean)
+        .join(" ")
+    );
+  }
 
   const headerRow = $(table)
     .find("tr")
     .filter((_, tr) => $(tr).find("th").length > 0)
     .first();
 
-  headerRow.find("th, td").each((_, cell) => {
-    headers.push($(cell).text().trim());
-  });
-
-  if (headers.length > 0) {
-    return headers;
-  }
-
-  $(table)
-    .find("tr")
-    .first()
+  return headerRow
     .find("th, td")
-    .each((_, cell) => {
-      headers.push($(cell).text().trim());
-    });
-
-  return headers;
+    .map((_, cell) => $(cell).text().trim())
+    .get();
 }
 
 export async function GET(request) {
   const { searchParams } = new URL(request.url);
-
   const symbol = (
     searchParams.get("symbol") || "FPT"
-  )
-    .trim()
-    .toUpperCase();
+  ).trim().toUpperCase();
 
   if (!/^[A-Z0-9]{2,12}$/.test(symbol)) {
     return NextResponse.json(
@@ -122,8 +137,6 @@ export async function GET(request) {
     );
   }
 
-  // CafeF HTML source. This is best-effort scraping,
-  // not a guaranteed public API.
   const sourceUrl =
     `https://cafef.vn/du-lieu/lich-su-giao-dich-${symbol.toLowerCase()}-3.chn`;
 
@@ -222,78 +235,72 @@ export async function GET(request) {
         /net value/
       ]);
 
-      // Do not mistake an ordinary price-history table
-      // for a foreign-investor transaction table.
       if (
         dateIndex < 0 ||
         buyVolumeIndex < 0 ||
-        sellVolumeIndex < 0
+        sellVolumeIndex < 0 ||
+        netVolumeIndex < 0
       ) {
         return;
       }
 
       const rows = [];
 
-      $(table)
-        .find("tr")
-        .each((__, tr) => {
-          const cells = $(tr)
-            .children("td")
-            .map((___, td) => $(td).text().trim())
-            .get();
+      $(table).find("tbody tr, tr").each((__, tr) => {
+        const cells = $(tr)
+          .children("td")
+          .map((___, td) => $(td).text().trim())
+          .get();
 
-          const date = parseDate(cells[dateIndex]);
+        const parsedDate = parseDate(cells[dateIndex]);
+        if (!parsedDate) return;
 
-          if (!date) return;
+        const buyVolume = parseNumber(
+          cells[buyVolumeIndex]
+        );
 
-          const buyVolume = parseNumber(
-            cells[buyVolumeIndex]
-          );
+        const sellVolume = parseNumber(
+          cells[sellVolumeIndex]
+        );
 
-          const sellVolume = parseNumber(
-            cells[sellVolumeIndex]
-          );
+        const netVolume = parseNumber(
+          cells[netVolumeIndex]
+        );
 
-          if (
-            buyVolume === null ||
-            sellVolume === null
-          ) {
-            return;
-          }
+        if (
+          buyVolume === null ||
+          sellVolume === null ||
+          netVolume === null
+        ) {
+          return;
+        }
 
-          const netVolume =
-            netVolumeIndex >= 0
-              ? parseNumber(cells[netVolumeIndex])
-              : buyVolume - sellVolume;
-
-          if (netVolume === null) return;
-
-          rows.push({
-            date: date.text,
-            dateValue: date.time,
-            buyVolume,
-            sellVolume,
-            netVolume,
-            buyValue:
-              buyValueIndex >= 0
-                ? parseNumber(cells[buyValueIndex])
-                : null,
-            sellValue:
-              sellValueIndex >= 0
-                ? parseNumber(cells[sellValueIndex])
-                : null,
-            netValue:
-              netValueIndex >= 0
-                ? parseNumber(cells[netValueIndex])
-                : null
-          });
+        rows.push({
+          date: parsedDate.text,
+          dateValue: parsedDate.time,
+          buyVolume,
+          sellVolume,
+          netVolume,
+          buyValue:
+            buyValueIndex >= 0
+              ? parseNumber(cells[buyValueIndex])
+              : null,
+          sellValue:
+            sellValueIndex >= 0
+              ? parseNumber(cells[sellValueIndex])
+              : null,
+          netValue:
+            netValueIndex >= 0
+              ? parseNumber(cells[netValueIndex])
+              : null
         });
+      });
 
       if (
         rows.length > 0 &&
         (!best || rows.length > best.rows.length)
       ) {
-        best = { rows, headers };
+        best = { rows };
       }
     });
 
@@ -302,7 +309,7 @@ export async function GET(request) {
         {
           success: false,
           error:
-            "Không tìm thấy bảng CafeF có cột ngày và khối lượng mua/bán phù hợp. Trang có thể đã đổi cấu trúc HTML hoặc tải dữ liệu bằng JavaScript. Không có số liệu thay thế nào được tạo.",
+            "Không tìm thấy bảng CafeF có đủ ngày, khối lượng mua, bán và ròng. Trang có thể đã đổi cấu trúc hoặc tải dữ liệu bằng JavaScript. Không có số liệu giả được tạo.",
           symbol,
           sourceUrl
         },
@@ -331,7 +338,7 @@ export async function GET(request) {
         sourceUrl,
         sessionsReturned: 1,
         note:
-          "Dữ liệu là phiên mới nhất đọc được từ bảng phù hợp. Cần đối chiếu với nguồn CafeF."
+          "Phiên mới nhất đọc được từ bảng phù hợp. Hãy đối chiếu với CafeF trước khi sử dụng."
       },
       {
         headers: {
