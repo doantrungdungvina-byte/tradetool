@@ -62,3 +62,5 @@ a{color:#1c62c5;text-decoration:none}a:hover{text-decoration:underline}
 .fund-option strong { font-size: 14px; }
 .fund-option span { color: #718096; font-size: 12px; }
 .fund-empty { padding: 14px; color: #718096; font-size: 13px; }
+
+.technical-panel{margin:22px 0;padding:18px;border:1px solid var(--line);border-radius:12px;background:#fbfcff}.technical-panel h3{margin:0 0 14px}.technical-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}.technical-card{border:1px solid var(--line);border-radius:10px;background:#fff;padding:14px;display:flex;flex-direction:column;gap:7px}.technical-card strong{font-size:12px;color:var(--muted)}.technical-card span{font-size:18px;font-weight:750}.technical-card p{margin:0;font-size:12px;line-height:1.5;color:var(--muted)}.technical-list{padding-left:20px;font-size:13px;line-height:1.7}.technical-list li{margin:6px 0}@media(max-width:700px){.technical-grid{grid-template-columns:1fr}}

@@ -149,6 +149,20 @@ export async function GET(request) {
     const ma20 = sma(closes, 20);
     const ma50 = sma(closes, 50);
     const ma200 = sma(closes, 200);
+    const recent20 = closes.slice(-20);
+    const mean20 = average(recent20);
+    const std20 = Math.sqrt(average(recent20.map(v => (v - mean20) ** 2)));
+    const emaCalc = (values, period) => {
+      if (values.length < period) return null;
+      const k = 2 / (period + 1);
+      let value = average(values.slice(0, period));
+      for (let i = period; i < values.length; i++) value = values[i] * k + value * (1 - k);
+      return value;
+    };
+    const ema12 = emaCalc(closes, 12), ema26 = emaCalc(closes, 26);
+    const macd = ema12 != null && ema26 != null ? ema12 - ema26 : null;
+    const support20 = Math.min(...rows.slice(-20).map(r => r.low));
+    const resistance20 = Math.max(...rows.slice(-20).map(r => r.high));
 
     const changePct = previous?.close
       ? ((last.close / previous.close) - 1) * 100
@@ -312,7 +326,13 @@ export async function GET(request) {
           ma20: round(ma20),
           ma50: round(ma50),
           ma200: round(ma200),
-          atr14: round(atr14)
+          atr14: round(atr14),
+          atrPct: round(atr14 != null ? atr14 / last.close * 100 : null),
+          macd: round(macd),
+          bollingerUpper: round(mean20 + 2 * std20),
+          bollingerLower: round(mean20 - 2 * std20),
+          support20: round(support20),
+          resistance20: round(resistance20)
         },
 
         dca,
@@ -322,7 +342,12 @@ export async function GET(request) {
           reversal,
           reversalDetail,
           rsiState,
-          maTrend
+          maTrend,
+          technicalSummary: [
+            maTrend === "Tăng" ? "Giá trên MA20 và MA20 trên MA50: xu hướng ngắn-trung hạn nghiêng tăng." : maTrend === "Giảm" ? "Giá dưới MA20 và MA20 dưới MA50: xu hướng ngắn-trung hạn nghiêng giảm." : "Các đường trung bình chưa đồng thuận; chờ xác nhận.",
+            rsi14 != null && rsi14 >= 70 ? "RSI quá mua: tránh mua đuổi, theo dõi khả năng điều chỉnh." : rsi14 != null && rsi14 <= 30 ? "RSI quá bán: có thể hồi kỹ thuật nhưng chưa xác nhận đảo chiều." : "RSI chưa ở vùng quá mua/quá bán.",
+            atr14 != null ? `ATR(14) = ${round(atr14)} USD, tương đương ${round(atr14 / last.close * 100)}% giá; dùng để ước lượng biến động, không phải dự báo chắc chắn.` : "Chưa đủ dữ liệu ATR."
+          ]
         },
 
         history: rows.slice(-220).map((row) => ({

@@ -414,6 +414,12 @@ export default function Home() {
                 <Metric label="MA20" value={fmt(fxData.indicators.ma20)} />
                 <Metric label="MA50" value={fmt(fxData.indicators.ma50)} />
                 <Metric label="MA200" value={fmt(fxData.indicators.ma200)} />
+                <Metric label="ATR (14)" value={fxData.indicators.atr14 == null ? "—" : fmt(fxData.indicators.atr14, 4)} sub={fxData.indicators.atrPct == null ? "Biên độ biến động" : `${fmt(fxData.indicators.atrPct, 2)}% giá hiện tại`} />
+                <Metric label="MACD (12,26)" value={fmt(fxData.indicators.macd, 4)} sub={fxData.indicators.macd == null ? "Chưa đủ dữ liệu" : fxData.indicators.macd > 0 ? "Động lượng dương" : fxData.indicators.macd < 0 ? "Động lượng âm" : "Trung tính"} />
+                <Metric label="Hỗ trợ 20 nến" value={fmt(fxData.indicators.support20, 4)} />
+                <Metric label="Kháng cự 20 nến" value={fmt(fxData.indicators.resistance20, 4)} />
+                <Metric label="Bollinger trên" value={fmt(fxData.indicators.bollingerUpper, 4)} />
+                <Metric label="Bollinger dưới" value={fmt(fxData.indicators.bollingerLower, 4)} />
               </div>
               {fxSymbol === "XAUUSD" && fxData.analysis && (
                 <div className="metrics" style={{ marginTop: 12 }}>
@@ -421,6 +427,21 @@ export default function Home() {
                   <Metric label="Xu hướng MA20/MA50" value={fxData.analysis.maTrend} sub="So sánh giá với MA20 và MA20 với MA50" />
                 </div>
               )}
+              <section className="technical-panel">
+                <h3>Phân tích kỹ thuật tổng hợp</h3>
+                <div className="technical-grid">
+                  <div className="technical-card"><strong>Xu hướng</strong><span>{fxData.analysis?.trend || fxData.analysis?.maTrend || "Chưa đủ dữ liệu"}</span><p>Đánh giá từ vị trí giá so với MA20/MA50.</p></div>
+                  <div className="technical-card"><strong>RSI (14)</strong><span>{fxData.analysis?.rsiState || (fxData.indicators.rsi14 >= 70 ? "Quá mua" : fxData.indicators.rsi14 <= 30 ? "Quá bán" : "Trung tính")}</span><p>RSI &gt; 70 thường được xem là quá mua; RSI &lt; 30 là quá bán.</p></div>
+                  <div className="technical-card"><strong>ATR &amp; quản trị rủi ro</strong><span>{fxData.indicators.atr14 == null ? "Chưa đủ dữ liệu" : `${fmt(fxData.indicators.atr14, 4)} (${fmt(fxData.indicators.atrPct, 2)}%)`}</span><p>ATR đo biên độ dao động trung bình, không cho biết hướng giá.</p></div>
+                </div>
+                <ul className="technical-list">{(fxData.analysis?.technicalSummary || []).map((item, i) => <li key={i}>{item}</li>)}</ul>
+                <p className="muted">Các chỉ báo là tín hiệu tham khảo dựa trên dữ liệu lịch sử, không phải khuyến nghị mua/bán.</p>
+              </section>
+              {((Array.isArray(fxData.dca) && fxData.dca.length > 0) || (Array.isArray(fxData.levels) && fxData.levels.length > 0)) && <>
+                <h3>Mức giá DCA / vùng hỗ trợ tham khảo</h3>
+                <p className="muted">Ước tính từ ATR, MA và vùng đáy gần đây tùy nguồn dữ liệu. Không đảm bảo giá sẽ chạm các mức này.</p>
+                <div className="table-scroll"><table><thead><tr><th>Mức</th><th>Giá tham khảo</th><th>Thấp hơn giá hiện tại</th><th>Cơ sở</th></tr></thead><tbody>{(fxData.dca || fxData.levels || []).map((item) => <tr key={item.label}><td>{item.label}</td><td>{fmt(item.price, 4)}</td><td>{item.dropPct == null ? (item.distanceAtr != null ? `${fmt(item.distanceAtr, 1)} × ATR` : "—") : `${fmt(item.dropPct, 2)}%`}</td><td>{item.basis || `Giá hiện tại − ${item.distanceAtr} ATR`}</td></tr>)}</tbody></table></div>
+              </>}
               <PriceChart data={fxData.history} />
               <p className="muted">Nguồn: {fxData.source || "Yahoo Finance"}{fxSymbol === "XAUUSD" ? ` · Twelve Data XAU/USD · Khung ${({"5min":"M5","15min":"M15","30min":"M30","1h":"H1","4h":"H4","1day":"D1"})[xauInterval]}` : " · Dữ liệu có thể trễ tùy nhà cung cấp"}. Không tự đặt lệnh giao dịch.</p>
             </>

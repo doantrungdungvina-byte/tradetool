@@ -37,8 +37,13 @@ function rsi(values, period = 14) {
   if (avgLoss === 0) return 100;
   return 100 - 100 / (1 + avgGain / avgLoss);
 }
-function round(n) {
-  return Number.isFinite(n) ? Number(n.toFixed(4)) : null;
+function round(n) { return Number.isFinite(n) ? Number(n.toFixed(4)) : null; }
+function ema(values, period) {
+  if (values.length < period) return null;
+  const k = 2 / (period + 1);
+  let out = average(values.slice(0, period));
+  for (let i = period; i < values.length; i++) out = values[i] * k + out * (1 - k);
+  return out;
 }
 
 function emptyFundamentals() {
@@ -158,7 +163,18 @@ export async function GET(request) {
       return Math.max(r.high - r.low, Math.abs(r.high - prevClose), Math.abs(r.low - prevClose));
     });
     const atr = average(trueRanges.slice(1));
+    const highN = n => Math.max(...rows.slice(-n).map(r => r.high));
     const lowN = n => Math.min(...rows.slice(-n).map(r => r.low));
+    const ema12 = ema(closes, 12), ema26 = ema(closes, 26);
+    const macd = ema12 != null && ema26 != null ? ema12 - ema26 : null;
+    const bbUpper = ma20 + 2 * std, bbLower = ma20 - 2 * std;
+    const rsi14 = rsi(closes);
+    const trend = last.close > ma20 && ma20 > (ma50 ?? ma20) ? "Tăng" : last.close < ma20 && ma20 < (ma50 ?? ma20) ? "Giảm" : "Đi ngang / chưa rõ";
+    const technicalSummary = [
+      trend === "Tăng" ? "Giá trên MA20 và MA20 trên MA50: xu hướng ngắn-trung hạn nghiêng tăng." : trend === "Giảm" ? "Giá dưới MA20 và MA20 dưới MA50: xu hướng ngắn-trung hạn nghiêng giảm." : "Các đường trung bình chưa đồng thuận; ưu tiên chờ xác nhận.",
+      rsi14 >= 70 ? "RSI vào vùng quá mua, tránh mua đuổi và chờ tín hiệu xác nhận." : rsi14 <= 30 ? "RSI vào vùng quá bán; có thể xuất hiện hồi kỹ thuật nhưng chưa đồng nghĩa đảo chiều." : "RSI chưa ở vùng cực đoan.",
+      last.close >= bbUpper ? "Giá chạm/vượt Bollinger trên: biến động mạnh, rủi ro hồi lại tăng." : last.close <= bbLower ? "Giá chạm/dưới Bollinger dưới: theo dõi phản ứng tại vùng hỗ trợ." : "Giá nằm trong dải Bollinger."
+    ];
 
     const candidates = [
       { label: "Mua thăm dò", price: ma20, basis: "MA20" },
@@ -190,11 +206,12 @@ export async function GET(request) {
       price: round(last.close),
       changePct: round((last.close / prev.close - 1) * 100),
       indicators: {
-        ma20: round(ma20),
-        ma50: round(ma50),
-        ma200: round(ma200),
-        rsi14: round(rsi(closes)),
+        ma20: round(ma20), ma50: round(ma50), ma200: round(ma200), rsi14: round(rsi14),
+        atr14: round(atr), atrPct: round(atr / last.close * 100),
+        macd: round(macd), bollingerUpper: round(bbUpper), bollingerLower: round(bbLower),
+        support20: round(lowN(20)), resistance20: round(highN(20)),
       },
+      analysis: { trend, technicalSummary },
       fundamentals,
       levels,
       history: rows.slice(-220).map(r => ({ date: r.date, close: r.close })),

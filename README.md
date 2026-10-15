@@ -60,3 +60,10 @@ npm start
 - No `FOREIGN_FLOW_API_URL` or API token is required for this CafeF attempt.
 - CafeF is not treated as a guaranteed public API. If the HTML does not expose a recognizable table, the route returns an explicit error instead of fabricated data.
 - Verify values against the CafeF page. HTML structure, access restrictions, and data availability may change.
+
+## Cập nhật phân tích FX / XAUUSD
+- Bổ sung ATR(14) và ATR theo % giá để tham khảo độ biến động.
+- Bổ sung MACD, Bollinger Bands, hỗ trợ/kháng cự 20 nến.
+- Bổ sung phần phân tích kỹ thuật tổng hợp từ MA20/MA50, RSI, Bollinger và ATR.
+- Bổ sung bảng mức giá DCA/vùng hỗ trợ tham khảo theo ATR, MA và đáy gần đây.
+- Chỉ báo dựa trên dữ liệu lịch sử và nguồn dữ liệu hiện cấu hình; không phải dự báo chắc chắn hay khuyến nghị giao dịch.
