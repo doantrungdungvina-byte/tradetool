@@ -8,6 +8,7 @@ const TABS = [
   { id: "forex", label: "🌎 FX" },
   { id: "funds", label: "📈 CHỨNG CHỈ QUỸ" },
   { id: "dca", label: "🧮 DCA" },
+  { id: "compound", label: "📈 LÃI KÉP" },
 ];
 
 const FX_SYMBOLS = [
@@ -134,6 +135,12 @@ export default function Home() {
   const [dcaPriceSource, setDcaPriceSource] = useState("");
   const [dcaRowsInput, setDcaRowsInput] = useState([{ id: 1, date: new Date().toISOString().slice(0, 10), quantity: "", price: "" }]);
   const [nextDcaId, setNextDcaId] = useState(2);
+  const [compoundInitial, setCompoundInitial] = useState("50000000");
+  const [compoundContribution, setCompoundContribution] = useState("5000000");
+  const [compoundFrequency, setCompoundFrequency] = useState("monthly");
+  const [compoundReturn, setCompoundReturn] = useState("10");
+  const [compoundYears, setCompoundYears] = useState("20");
+  const [compoundMonthlyGoal, setCompoundMonthlyGoal] = useState("20000000");
 
   async function loadMarket(kind) {
     const currentSymbol = kind === "forex" ? fxSymbol : symbol.trim().toUpperCase();
@@ -254,13 +261,36 @@ export default function Home() {
     : null;
   const dcaEstimatedBuyCost = dcaEstimatedBuyQty != null && dcaNowPrice != null ? dcaEstimatedBuyQty * dcaNowPrice : null;
 
+  const compoundPlan = useMemo(() => {
+    const initial = Math.max(Number(compoundInitial) || 0, 0);
+    const contribution = Math.max(Number(compoundContribution) || 0, 0);
+    const annualReturn = Math.max(Number(compoundReturn) || 0, 0) / 100;
+    const years = Math.min(Math.max(Math.floor(Number(compoundYears) || 0), 0), 100);
+    const periodsPerYear = compoundFrequency === "quarterly" ? 4 : 12;
+    const rate = Math.pow(1 + annualReturn, 1 / periodsPerYear) - 1;
+    let balance = initial;
+    let totalContributed = initial;
+    const timeline = [];
+    for (let year = 1; year <= years; year++) {
+      for (let period = 0; period < periodsPerYear; period++) {
+        balance *= 1 + rate;
+        balance += contribution;
+        totalContributed += contribution;
+      }
+      timeline.push({ year, balance, contributed: totalContributed, profit: balance - totalContributed });
+    }
+    const targetCapital = Math.max(Number(compoundMonthlyGoal) || 0, 0) * 12 / 0.04;
+    const reached = timeline.find((row) => row.balance >= targetCapital);
+    return { initial, contribution, annualReturn, years, periodsPerYear, balance, totalContributed, profit: balance - totalContributed, timeline, targetCapital, reachedYear: reached?.year ?? null };
+  }, [compoundInitial, compoundContribution, compoundFrequency, compoundReturn, compoundYears, compoundMonthlyGoal]);
+
   return (
     <main className="shell">
       <header className="hero">
         <div className="brand-mark">↗</div>
         <div>
           <h1>Trading Tools</h1>
-          <p>VN Stock • Forex / XAUUSD • Technical Analysis • DCA</p>
+          <p>VN Stock • Forex / XAUUSD • Technical Analysis • DCA • Lãi kép</p>
         </div>
       </header>
 
@@ -462,6 +492,33 @@ export default function Home() {
             </>
           )}
           <div className="alert info" style={{ marginTop: 16 }}>Công thức: Tổng vốn = Σ (khối lượng × giá mua); giá vốn trung bình = tổng vốn ÷ tổng khối lượng. Chỉ tính các dòng có cả khối lượng và giá mua lớn hơn 0. Lãi/lỗ chưa tính phí, thuế và cổ tức.</div>
+        </section>
+      )}
+
+      {tab === "compound" && (
+        <section className="panel">
+          <h2>📈 Lãi kép &amp; Hoạch định mục tiêu tự do tài chính</h2>
+          <p className="muted">Mô phỏng tích lũy dài hạn với lợi nhuận được tái đầu tư. Đây là kịch bản giả định, không phải cam kết lợi nhuận.</p>
+          <div className="form-grid compound-grid">
+            <label>Vốn ban đầu (VND)<input type="number" min="0" step="any" value={compoundInitial} onChange={(e) => setCompoundInitial(e.target.value)} /></label>
+            <label>Đầu tư thêm mỗi kỳ (VND)<input type="number" min="0" step="any" value={compoundContribution} onChange={(e) => setCompoundContribution(e.target.value)} /></label>
+            <label>Tần suất đầu tư<select value={compoundFrequency} onChange={(e) => setCompoundFrequency(e.target.value)}><option value="monthly">Hàng tháng</option><option value="quarterly">Hàng quý</option></select></label>
+            <label>Lợi nhuận kỳ vọng năm (%)<input type="number" min="0" max="100" step="0.1" value={compoundReturn} onChange={(e) => setCompoundReturn(e.target.value)} /></label>
+            <label>Thời gian đầu tư (năm)<input type="number" min="0" max="100" step="1" value={compoundYears} onChange={(e) => setCompoundYears(e.target.value)} /></label>
+            <label>Mục tiêu thu nhập thụ động/tháng (VND)<input type="number" min="0" step="any" value={compoundMonthlyGoal} onChange={(e) => setCompoundMonthlyGoal(e.target.value)} /></label>
+          </div>
+          <div className="metrics">
+            <Metric label="Tổng tài sản dự kiến" value={`${fmt(compoundPlan.balance, 0)} VND`} />
+            <Metric label="Tổng tiền tự góp" value={`${fmt(compoundPlan.totalContributed, 0)} VND`} />
+            <Metric label="Lợi nhuận từ tăng trưởng" value={`${fmt(compoundPlan.profit, 0)} VND`} positive={compoundPlan.profit >= 0} />
+            <Metric label="Vốn mục tiêu tự do tài chính" value={`${fmt(compoundPlan.targetCapital, 0)} VND`} sub="Quy tắc tham khảo: chi tiêu năm ÷ 4%" />
+          </div>
+          <div className="alert info" style={{ marginTop: 12 }}>
+            {compoundPlan.targetCapital <= 0 ? "Nhập mục tiêu thu nhập thụ động để ước tính vốn cần có." : compoundPlan.reachedYear != null ? `Theo giả định hiện tại, tài sản có thể đạt vốn mục tiêu vào khoảng năm thứ ${compoundPlan.reachedYear}.` : `Trong ${compoundPlan.years} năm mô phỏng, tài sản chưa đạt vốn mục tiêu. Hãy thử điều chỉnh mức góp, thời gian hoặc giả định lợi nhuận.`}
+            <br />Tần suất: {compoundPlan.periodsPerYear === 12 ? "hàng tháng" : "hàng quý"}. Lãi suất mỗi kỳ được quy đổi từ lợi nhuận năm; tiền góp được thêm vào cuối mỗi kỳ. Chưa tính lạm phát, phí, thuế và biến động lợi nhuận thực tế.
+          </div>
+          <h3>Lộ trình tài sản theo năm</h3>
+          {compoundPlan.timeline.length ? <div className="table-scroll"><table><thead><tr><th>Năm</th><th>Tổng tiền tự góp</th><th>Lợi nhuận tích lũy</th><th>Tổng tài sản dự kiến</th></tr></thead><tbody>{compoundPlan.timeline.map((row) => <tr key={row.year}><td>{row.year}</td><td>{fmt(row.contributed, 0)} VND</td><td>{fmt(row.profit, 0)} VND</td><td><strong>{fmt(row.balance, 0)} VND</strong></td></tr>)}</tbody></table></div> : <p className="muted">Nhập thời gian đầu tư lớn hơn 0 để xem bảng dự phóng.</p>}
         </section>
       )}
 
