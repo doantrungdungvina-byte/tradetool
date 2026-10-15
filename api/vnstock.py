@@ -85,22 +85,26 @@ class handler(BaseHTTPRequestHandler):
         if not symbol or len(symbol)>12 or any(ch not in ALLOWED for ch in symbol):
             return self._send(400, {'error':'Mã cổ phiếu không hợp lệ. Chỉ dùng chữ cái và chữ số, ví dụ FPT, HPG, VCB.'})
         try:
-            from vnstock import Market
+            # Vnstock v5 is distributed from the official package index.
+            from vnstock import Quote
         except Exception as exc:
-            return self._send(500, {'error':'Không nạp được thư viện Vnstock. Kiểm tra requirements.txt và Vercel Build Logs.'})
+            return self._send(500, {'error':'Không nạp được Vnstock. Kiểm tra requirements.txt, package index và Vercel Build Logs.', 'details':[str(exc)[:220]]})
         errors=[]
-        for source in ('vci','kbs'):
+        # Vnstock v5 API: Quote(symbol=..., source=...).history(...)
+        for source in ('VCI', 'KBS'):
             try:
-                # Community API currently exposes OHLCV with limit/interval/source.
-                df=Market().equity(symbol).ohlcv(limit=300, interval='1D', source=source)
+                quote = Quote(symbol=symbol, source=source)
+                end = datetime.now().strftime('%Y-%m-%d')
+                start = (datetime.now().replace(year=datetime.now().year-2)).strftime('%Y-%m-%d')
+                df = quote.history(start=start, end=end, interval='1D')
                 if df is None or getattr(df,'empty',True):
                     raise ValueError('Nguồn trả về bảng dữ liệu rỗng.')
-                payload=_build_response(symbol,df,source)
-                payload['fallbackTried'] = source != 'vci'
-                return self._send(200,payload)
+                payload = _build_response(symbol, df, source)
+                payload['fallbackTried'] = source != 'VCI'
+                return self._send(200, payload)
             except Exception as exc:
-                errors.append(f'{source.upper()}: {str(exc)[:220]}')
-        return self._send(502, {'error':'Không lấy được dữ liệu từ VCI hoặc KBS.','details':errors,'symbol':symbol})
+                errors.append(f'{source}: {str(exc)[:220]}')
+        return self._send(502, {'error':'Không lấy được dữ liệu từ Vnstock VCI hoặc KBS.','details':errors,'symbol':symbol})
 
     def _send(self,status,payload):
         body=json.dumps(payload,ensure_ascii=False,allow_nan=False).encode('utf-8')

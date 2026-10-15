@@ -47,3 +47,7 @@ Khi Yahoo Finance không có mã, `/api/market` và `/api/stock-volume` sẽ g�
 - `.python-version` pins Python 3.11 for the Vnstock fallback.
 - If `pyproject.toml` contains `tool.uv.environments` with `sys_platform == 'win32'`, remove that Windows-only split; Vercel builds on Linux.
 - Redeploy and inspect Python dependency resolution logs.
+
+
+## Vnstock package index
+Vnstock v5 is installed from the official package index at `https://vnstocks.com/api/packages`; it is not distributed through PyPI according to the official installation docs. `requirements.txt` therefore includes `--extra-index-url` and pins `vnstock==5.0.1`. The Python endpoint uses the v5 `Quote(...).history(...)` API. Check Vercel build logs for package-index or authentication errors after deployment.
