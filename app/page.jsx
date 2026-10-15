@@ -299,6 +299,7 @@ export default function Home() {
   const [taxUseOtherInsurance, setTaxUseOtherInsurance] = useState(false);
   const [taxRegion, setTaxRegion] = useState("I");
   const [taxDependents, setTaxDependents] = useState("0");
+  const [taxCalculated, setTaxCalculated] = useState(false);
   const [calendarViewDate, setCalendarViewDate] = useState(() => new Date());
   const [calendarSelectedDate, setCalendarSelectedDate] = useState(() => new Date());
   const [symbol, setSymbol] = useState("FPT");
@@ -959,27 +960,30 @@ export default function Home() {
           <div className="tax-rule-strip"><span>Giảm trừ bản thân <strong>15.500.000 ₫/tháng</strong></span><span>Người phụ thuộc <strong>6.200.000 ₫/người/tháng</strong></span></div>
           <div className="tax-form-grid">
             <label>Thu nhập trước thuế (Gross), VND
-              <input type="number" min="0" step="100000" value={taxGross} onChange={(e) => setTaxGross(e.target.value)} placeholder="Ví dụ: 10000000" />
+              <input type="number" min="0" step="100000" value={taxGross} onChange={(e) => { setTaxGross(e.target.value); setTaxCalculated(false); }} placeholder="Ví dụ: 10000000" />
             </label>
             <label>Mức lương đóng bảo hiểm, VND
-              <input type="number" min="0" step="100000" value={taxUseOtherInsurance ? taxInsuranceSalary : taxGross} onChange={(e) => setTaxInsuranceSalary(e.target.value)} disabled={!taxUseOtherInsurance} placeholder="Mặc định bằng lương Gross" />
+              <input type="number" min="0" step="100000" value={taxUseOtherInsurance ? taxInsuranceSalary : taxGross} onChange={(e) => { setTaxInsuranceSalary(e.target.value); setTaxCalculated(false); }} disabled={!taxUseOtherInsurance} placeholder="Mặc định bằng lương Gross" />
             </label>
             <label>Vùng lương tối thiểu
-              <select value={taxRegion} onChange={(e) => setTaxRegion(e.target.value)}><option value="I">Vùng I</option><option value="II">Vùng II</option><option value="III">Vùng III</option><option value="IV">Vùng IV</option></select>
+              <select value={taxRegion} onChange={(e) => { setTaxRegion(e.target.value); setTaxCalculated(false); }}><option value="I">Vùng I</option><option value="II">Vùng II</option><option value="III">Vùng III</option><option value="IV">Vùng IV</option></select>
             </label>
             <label>Số người phụ thuộc
-              <input type="number" min="0" max="30" step="1" value={taxDependents} onChange={(e) => setTaxDependents(e.target.value)} />
+              <input type="number" min="0" max="30" step="1" value={taxDependents} onChange={(e) => { setTaxDependents(e.target.value); setTaxCalculated(false); }} />
             </label>
           </div>
-          <label className="tax-checkbox"><input type="checkbox" checked={taxUseOtherInsurance} onChange={(e) => { setTaxUseOtherInsurance(e.target.checked); if (!e.target.checked) setTaxInsuranceSalary(""); }} /> Mức lương đóng bảo hiểm khác với lương Gross</label>
-          <div className="tax-results">
-            <article className="tax-result"><span>Thu nhập chịu thuế sau giảm trừ</span><strong>{money(taxable)}</strong></article>
-            <article className="tax-result"><span>Bảo hiểm người lao động (ước tính 10,5%)</span><strong>{money(insurance)}</strong></article>
-            <article className="tax-result highlight"><span>Thuế TNCN tạm tính / tháng</span><strong>{money(monthlyTax)}</strong></article>
-            <article className="tax-result"><span>Lương thực nhận ước tính (Net)</span><strong>{money(net)}</strong></article>
-          </div>
-          <div className="tax-bracket-table"><h3>Biểu thuế lũy tiến tháng đang dùng</h3><div className="table-scroll"><table><thead><tr><th>Phần thu nhập tính thuế</th><th>Thuế suất</th></tr></thead><tbody><tr><td>Đến 10.000.000 ₫</td><td>5%</td></tr><tr><td>Trên 10.000.000 đến 30.000.000 ₫</td><td>10%</td></tr><tr><td>Trên 30.000.000 đến 60.000.000 ₫</td><td>20%</td></tr><tr><td>Trên 60.000.000 đến 100.000.000 ₫</td><td>30%</td></tr><tr><td>Trên 100.000.000 ₫</td><td>35%</td></tr></tbody></table></div></div>
-          <p className="muted">Vùng {taxRegion} được ghi nhận để tham khảo, chưa làm thay đổi phép tính thuế TNCN. Công cụ chưa tính các khoản miễn thuế, giảm trừ đặc thù, mức trần bảo hiểm và trường hợp quyết toán nhiều nguồn thu nhập; kết quả chỉ mang tính ước tính.</p>
+          <label className="tax-checkbox"><input type="checkbox" checked={taxUseOtherInsurance} onChange={(e) => { setTaxUseOtherInsurance(e.target.checked); setTaxCalculated(false); if (!e.target.checked) setTaxInsuranceSalary(""); }} /> Mức lương đóng bảo hiểm khác với lương Gross</label>
+          <button type="button" className="primary tax-calculate-button" onClick={() => setTaxCalculated(true)}>🧮 TÍNH THUẾ TNCN</button>
+          {!taxCalculated ? <p className="muted tax-hint">Nhập thông tin thu nhập và nhấn “TÍNH THUẾ TNCN” để xem kết quả.</p> : <>
+            <div className="tax-results" aria-live="polite">
+              <article className="tax-result"><span>Thu nhập chịu thuế sau giảm trừ</span><strong>{money(taxable)}</strong></article>
+              <article className="tax-result"><span>Bảo hiểm người lao động (ước tính 10,5%)</span><strong>{money(insurance)}</strong></article>
+              <article className="tax-result highlight"><span>Thuế TNCN tạm tính / tháng</span><strong>{money(monthlyTax)}</strong></article>
+              <article className="tax-result"><span>Lương thực nhận ước tính (Net)</span><strong>{money(net)}</strong></article>
+            </div>
+            <div className="tax-bracket-table"><h3>Biểu thuế lũy tiến tháng đang dùng</h3><div className="table-scroll"><table><thead><tr><th>Phần thu nhập tính thuế</th><th>Thuế suất</th></tr></thead><tbody><tr><td>Đến 10.000.000 ₫</td><td>5%</td></tr><tr><td>Trên 10.000.000 đến 30.000.000 ₫</td><td>10%</td></tr><tr><td>Trên 30.000.000 đến 60.000.000 ₫</td><td>20%</td></tr><tr><td>Trên 60.000.000 đến 100.000.000 ₫</td><td>30%</td></tr><tr><td>Trên 100.000.000 ₫</td><td>35%</td></tr></tbody></table></div></div>
+            <p className="muted">Vùng {taxRegion} được ghi nhận để tham khảo, chưa làm thay đổi phép tính thuế TNCN. Công cụ chưa tính các khoản miễn thuế, giảm trừ đặc thù, mức trần bảo hiểm và trường hợp quyết toán nhiều nguồn thu nhập; kết quả chỉ mang tính ước tính.</p>
+          </>}
         </section>;
       })()}
 
