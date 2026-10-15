@@ -120,6 +120,9 @@ export default function Home() {
   const [fxData, setFxData] = useState(null);
   const [foreignData, setForeignData] = useState(null);
   const [fundData, setFundData] = useState(null);
+  const [stockVolumeData, setStockVolumeData] = useState(null);
+  const [stockVolumeRange, setStockVolumeRange] = useState("3mo");
+  const [volumeLoading, setVolumeLoading] = useState(false);
   const [loading, setLoading] = useState("");
   const [error, setError] = useState("");
 
@@ -140,6 +143,26 @@ export default function Home() {
       setError(e.message || "Lỗi tải dữ liệu.");
     } finally {
       setLoading("");
+    }
+  }
+
+  async function loadStockVolume() {
+    const stockCode = symbol.trim().toUpperCase();
+    if (!/^[A-Z0-9]{2,12}$/.test(stockCode)) {
+      setError("Vui lòng nhập mã cổ phiếu hợp lệ.");
+      return;
+    }
+    setVolumeLoading(true);
+    setError("");
+    try {
+      const res = await fetch(`/api/stock-volume?symbol=${encodeURIComponent(stockCode)}&range=${encodeURIComponent(stockVolumeRange)}`, { cache: "no-store" });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Không tải được thống kê khối lượng.");
+      setStockVolumeData(json);
+    } catch (e) {
+      setError(e.message || "Không tải được thống kê khối lượng.");
+    } finally {
+      setVolumeLoading(false);
     }
   }
 
@@ -232,6 +255,44 @@ export default function Home() {
                 <Metric label="MA50" value={fmt(marketData.indicators.ma50)} />
               </div>
               <PriceChart data={marketData.history} />
+              <section className="panel" style={{ marginTop: 20 }}>
+                <h3>📊 Thống kê khối lượng giao dịch</h3>
+                <div className="form-grid stock-grid">
+                  <label>Khoảng thời gian
+                    <select value={stockVolumeRange} onChange={(e) => setStockVolumeRange(e.target.value)}>
+                      <option value="1mo">1 tháng</option>
+                      <option value="3mo">3 tháng</option>
+                      <option value="6mo">6 tháng</option>
+                      <option value="1y">1 năm</option>
+                    </select>
+                  </label>
+                  <button className="primary action" disabled={volumeLoading} onClick={loadStockVolume}>
+                    {volumeLoading ? "Đang tải..." : "📊 THỐNG KÊ KHỐI LƯỢNG"}
+                  </button>
+                </div>
+                {stockVolumeData && stockVolumeData.symbol === symbol.trim().toUpperCase() && <>
+                  <p className="muted">Phiên dữ liệu gần nhất: {stockVolumeData.updatedAt} · Nguồn: {stockVolumeData.source}</p>
+                  <div className="metrics">
+                    <Metric label="Khối lượng gần nhất" value={`${Number(stockVolumeData.latest.volume).toLocaleString("vi-VN")} cp`} />
+                    <Metric label="Giá đóng cửa" value={fmt(stockVolumeData.latest.close)} />
+                    <Metric label="Trung bình KLGD 20 phiên" value={`${Number(stockVolumeData.avgVolume20).toLocaleString("vi-VN")} cp`} />
+                    <Metric label="KLGD so với TB20" value={stockVolumeData.volumeVsAvgPct == null ? "—" : `${stockVolumeData.volumeVsAvgPct > 0 ? "+" : ""}${fmt(stockVolumeData.volumeVsAvgPct)}%`} positive={stockVolumeData.volumeVsAvgPct == null ? undefined : stockVolumeData.volumeVsAvgPct >= 0} />
+                  </div>
+                  <p>Thay đổi KLGD so với phiên trước: <strong>{stockVolumeData.volumeChangePct == null ? "Không xác định" : `${stockVolumeData.volumeChangePct > 0 ? "+" : ""}${fmt(stockVolumeData.volumeChangePct)}%`}</strong></p>
+                  <div className="table-scroll"><table>
+                    <thead><tr><th>Ngày</th><th>Giá đóng cửa</th><th>Khối lượng</th></tr></thead>
+                    <tbody>{[...stockVolumeData.history].reverse().slice(0, 30).map((r) => <tr key={r.date}><td>{r.date}</td><td>{fmt(r.close)}</td><td>{Number(r.volume).toLocaleString("vi-VN")}</td></tr>)}</tbody>
+                  </table></div>
+                  <button className="secondary" onClick={() => {
+                    const rows = [["Ngày", "Open", "High", "Low", "Close", "Volume"], ...stockVolumeData.history.map(r => [r.date, r.open, r.high, r.low, r.close, r.volume])];
+                    const csv = "\uFEFF" + rows.map(row => row.map(v => `"${String(v ?? "").replaceAll('"', '""')}"`).join(",")).join("\n");
+                    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8;" }));
+                    const a = document.createElement("a"); a.href = url; a.download = `${stockVolumeData.symbol}_khoi_luong.csv`; a.click(); URL.revokeObjectURL(url);
+                  }}>📥 Tải CSV</button>
+                </>}
+                <p className="muted">Dữ liệu lấy từ Yahoo Finance, có thể bị trễ hoặc không có với một số mã. Khối lượng là số cổ phiếu, không phải số lệnh.</p>
+              </section>
+
               <h3>Kế hoạch mua thăm dò &amp; DCA (tham khảo)</h3>
               <div className="table-scroll"><table>
                 <thead><tr><th>Mức</th><th>Giá tham khảo</th><th>Thấp hơn giá hiện tại</th><th>Cơ sở</th></tr></thead>
