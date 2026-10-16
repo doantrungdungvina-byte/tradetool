@@ -22,6 +22,7 @@ const TABS = [
   { id: "calendar", label: "🗓️ LỊCH VẠN NIÊN" },
   { id: "tax", label: "🧾 THUẾ TNCN" },
   { id: "business", label: "🏪 KINH DOANH" },
+  { id: "bhxh", label: "🛡️ BHXH" },
 ];
 
 const FX_SYMBOLS = [
@@ -279,6 +280,13 @@ export default function Home() {
   const [businessProductPrice, setBusinessProductPrice] = useState("30000");
   const [businessDaysPerMonth, setBusinessDaysPerMonth] = useState("30");
   const [businessCalculated, setBusinessCalculated] = useState(false);
+  const [bhxhMode, setBhxhMode] = useState("contribution");
+  const [bhxhSalary, setBhxhSalary] = useState("10000000");
+  const [bhxhLastSix, setBhxhLastSix] = useState("10000000");
+  const [bhxhBefore2014, setBhxhBefore2014] = useState("0");
+  const [bhxhAfter2014, setBhxhAfter2014] = useState("10");
+  const [bhxhMonthsExtra, setBhxhMonthsExtra] = useState("0");
+  const [bhxhCalculated, setBhxhCalculated] = useState(false);
   const [calendarViewDate, setCalendarViewDate] = useState(() => new Date());
   const [calendarSelectedDate, setCalendarSelectedDate] = useState(() => new Date());
   const [symbol, setSymbol] = useState("FPT");
@@ -524,20 +532,7 @@ export default function Home() {
   return (
     <main className="shell">
       <header className="hero">
-        <div className="brand-mark" aria-label="TD Finance Tools logo" role="img">
-          <svg viewBox="0 0 64 64" aria-hidden="true" focusable="false">
-            <rect x="9" y="6" width="46" height="52" rx="8" fill="#fffaf2" stroke="#172b4d" strokeWidth="3" />
-            <rect x="16" y="13" width="32" height="10" rx="2" fill="#172b4d" />
-            <g fill="#f29a38">
-              <rect x="17" y="29" width="7" height="7" rx="1.5" />
-              <rect x="28" y="29" width="7" height="7" rx="1.5" />
-              <rect x="17" y="40" width="7" height="7" rx="1.5" />
-              <rect x="28" y="40" width="7" height="7" rx="1.5" />
-            </g>
-            <path d="M36 47 L42 39 L47 42 L52 30" fill="none" stroke="#f29a38" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" />
-            <path d="M46 30 H52 V36" fill="none" stroke="#f29a38" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-        </div>
+        <div className="brand-mark">TD</div>
         <div>
           <h1>TD Finance Tools</h1>
           <p>Công cụ tài chính • Đầu tư • Thuế TNCN • Kinh doanh • Lịch vạn niên</p>
@@ -970,6 +965,74 @@ export default function Home() {
               <article className="business-result"><span>Lãi góp trên mỗi sản phẩm</span><strong>{money(margin)}</strong><small>Giá bán trừ chi phí biến đổi</small></article>
             </div>
             <div className="business-formula"><strong>Công thức áp dụng</strong><p>Số lượng hòa vốn/tháng = Chi phí cố định tháng ÷ (Giá bán − Chi phí biến đổi/sản phẩm)</p><p>Doanh thu hòa vốn = Số lượng hòa vốn đã làm tròn lên × Giá bán</p><p className="muted">Kết quả là ước tính, chưa bao gồm thuế, lãi vay, hao hụt, hàng tồn kho hoặc các chi phí chưa nhập.</p></div>
+          </>}
+        </section>;
+      })()}
+
+      {tab === "bhxh" && (() => {
+        const money = (value) => new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 0 }).format(Math.max(0, Math.round(Number(value) || 0))) + " ₫";
+        const salary = Math.max(0, Number(bhxhSalary) || 0);
+        const lastSix = Math.max(0, Number(bhxhLastSix) || 0);
+        const beforeYears = Math.max(0, Number(bhxhBefore2014) || 0);
+        const afterYears = Math.max(0, Number(bhxhAfter2014) || 0);
+        const extraMonths = Math.max(0, Math.min(11, Number(bhxhMonthsExtra) || 0));
+        // Quy đổi thời gian lẻ theo nguyên tắc tham khảo trong tài liệu người dùng cung cấp.
+        const roundedExtraYears = extraMonths === 0 ? 0 : extraMonths <= 6 ? 0.5 : 1;
+        const totalYears = beforeYears + afterYears + roundedExtraYears;
+        const employeeBHXH = salary * 0.08;
+        const employeeBHYT = salary * 0.015;
+        const employeeBHTN = salary * 0.01;
+        const employerBHXH = salary * 0.175;
+        const employerBHYT = salary * 0.03;
+        const employerBHTN = salary * 0.01;
+        const oneTimeBenefit = (beforeYears * 1.5 + (afterYears + roundedExtraYears) * 2) * lastSix;
+        const maternityBenefit = lastSix * 6;
+        const unemploymentBenefit = lastSix * 0.6;
+        return <section className="panel bhxh-panel">
+          <h2>🛡️ Công cụ tính BHXH và các khoản hưởng</h2>
+          <p className="muted">Ước tính mức đóng và một số chế độ thường gặp. Nhập dữ liệu theo hồ sơ thực tế rồi nhấn nút tính để xem kết quả.</p>
+          <div className="bhxh-form-grid">
+            <label>Chọn trường hợp cần tính
+              <select value={bhxhMode} onChange={(e) => { setBhxhMode(e.target.value); setBhxhCalculated(false); }}>
+                <option value="contribution">Mức đóng BHXH bắt buộc hàng tháng</option>
+                <option value="voluntary">Mức đóng BHXH tự nguyện</option>
+                <option value="lump">Mức hưởng BHXH một lần (ước tính)</option>
+                <option value="maternity">Chế độ thai sản (ước tính)</option>
+                <option value="unemployment">Trợ cấp thất nghiệp (ước tính)</option>
+              </select>
+            </label>
+            <label>{bhxhMode === "lump" ? "Mức bình quân tiền lương tháng đóng BHXH đã điều chỉnh (VND)" : bhxhMode === "maternity" || bhxhMode === "unemployment" ? "Mức bình quân tiền lương đóng BHXH/BHTN 6 tháng gần nhất (VND)" : "Mức thu nhập/lương làm căn cứ đóng (VND/tháng)"}
+              <input type="number" min="0" step="100000" value={bhxhMode === "lump" ? bhxhLastSix : bhxhMode === "maternity" || bhxhMode === "unemployment" ? bhxhLastSix : bhxhSalary} onChange={(e) => { if (bhxhMode === "lump" || bhxhMode === "maternity" || bhxhMode === "unemployment") setBhxhLastSix(e.target.value); else setBhxhSalary(e.target.value); setBhxhCalculated(false); }} />
+            </label>
+          </div>
+          {bhxhMode === "lump" && <>
+            <h3>Thời gian đã đóng BHXH</h3>
+            <div className="bhxh-form-grid">
+              <label>Số năm đóng trước năm 2014<input type="number" min="0" step="1" value={bhxhBefore2014} onChange={(e) => { setBhxhBefore2014(e.target.value); setBhxhCalculated(false); }} /></label>
+              <label>Số năm đóng từ năm 2014 trở đi<input type="number" min="0" step="1" value={bhxhAfter2014} onChange={(e) => { setBhxhAfter2014(e.target.value); setBhxhCalculated(false); }} /></label>
+              <label>Số tháng lẻ còn lại (0–11)<input type="number" min="0" max="11" step="1" value={bhxhMonthsExtra} onChange={(e) => { setBhxhMonthsExtra(e.target.value); setBhxhCalculated(false); }} /></label>
+            </div>
+            <p className="muted">Tháng lẻ được quy đổi theo cách tính tham khảo: 1–6 tháng = 0,5 năm; 7–11 tháng = 1 năm. Hãy xác nhận thời gian được cơ quan BHXH ghi nhận.</p>
+          </>}
+          <button type="button" className="primary bhxh-calculate-button" onClick={() => setBhxhCalculated(true)}>🧮 TÍNH BHXH</button>
+          {!bhxhCalculated ? <p className="muted tax-hint">Chọn chế độ, nhập mức lương/thu nhập và nhấn “TÍNH BHXH”.</p> : <>
+            {bhxhMode === "contribution" && <>
+              <div className="tax-results" aria-live="polite">
+                <article className="tax-result"><span>Người lao động đóng BHXH (8%)</span><strong>{money(employeeBHXH)}</strong></article>
+                <article className="tax-result"><span>Người lao động đóng BHYT (1,5%)</span><strong>{money(employeeBHYT)}</strong></article>
+                <article className="tax-result"><span>Người lao động đóng BHTN (1%)</span><strong>{money(employeeBHTN)}</strong></article>
+                <article className="tax-result highlight"><span>Tổng người lao động đóng (10,5%)</span><strong>{money(employeeBHXH + employeeBHYT + employeeBHTN)}</strong></article>
+                <article className="tax-result"><span>Phần đơn vị đóng BHXH (17,5%)</span><strong>{money(employerBHXH)}</strong></article>
+                <article className="tax-result"><span>Phần đơn vị đóng BHYT + BHTN (4%)</span><strong>{money(employerBHYT + employerBHTN)}</strong></article>
+                <article className="tax-result highlight"><span>Tổng phần đơn vị đóng (21,5%)</span><strong>{money(employerBHXH + employerBHYT + employerBHTN)}</strong></article>
+                <article className="tax-result"><span>Tổng đóng cả hai bên (32%)</span><strong>{money(employeeBHXH + employeeBHYT + employeeBHTN + employerBHXH + employerBHYT + employerBHTN)}</strong></article>
+              </div>
+            </>}
+            {bhxhMode === "voluntary" && <div className="tax-results"><article className="tax-result highlight"><span>Mức đóng BHXH tự nguyện tham khảo (22%)</span><strong>{money(salary * 0.22)} / tháng</strong></article><article className="tax-result"><span>Ước tính 12 tháng</span><strong>{money(salary * 0.22 * 12)}</strong></article><p className="muted">Chưa trừ mức hỗ trợ đóng của Nhà nước; mức căn cứ và hỗ trợ tùy trường hợp, cần kiểm tra quy định hiện hành.</p></div>}
+            {bhxhMode === "lump" && <div className="tax-results"><article className="tax-result"><span>Tổng thời gian quy đổi</span><strong>{totalYears.toLocaleString("vi-VN")} năm</strong></article><article className="tax-result highlight"><span>Mức hưởng BHXH một lần ước tính</span><strong>{money(oneTimeBenefit)}</strong><small>Công thức tham khảo: (1,5 × năm trước 2014 + 2 × năm từ 2014) × mức bình quân tháng</small></article></div>}
+            {bhxhMode === "maternity" && <div className="tax-results"><article className="tax-result highlight"><span>Tiền thai sản ước tính cho 6 tháng nghỉ sinh</span><strong>{money(maternityBenefit)}</strong><small>Tạm tính bằng bình quân tiền lương đóng BHXH của 6 tháng × 6; chưa gồm trợ cấp một lần khi sinh con và các điều kiện hồ sơ.</small></article></div>}
+            {bhxhMode === "unemployment" && <div className="tax-results"><article className="tax-result highlight"><span>Trợ cấp thất nghiệp ước tính mỗi tháng</span><strong>{money(unemploymentBenefit)}</strong><small>Tạm tính 60% bình quân tiền lương đóng BHTN của 6 tháng gần nhất; chưa áp dụng mức trần theo vùng và thời gian hưởng.</small></article></div>}
+            <div className="business-formula"><strong>Lưu ý quan trọng</strong><p>Các kết quả chỉ để tham khảo, không phải quyết định hưởng chế độ. Mức đóng, mức bình quân tiền lương, mức trần, điều kiện và công thức có thể phụ thuộc loại hình tham gia, thời gian đóng, thời điểm phát sinh quyền lợi và quy định pháp luật đang có hiệu lực.</p><p className="muted">Riêng BHXH một lần: công thức trên chỉ là ước tính theo dữ liệu nhập, không xác nhận bạn đủ điều kiện rút BHXH một lần. Hãy kiểm tra với cơ quan BHXH trước khi ra quyết định.</p></div>
           </>}
         </section>;
       })()}
