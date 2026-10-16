@@ -22,6 +22,7 @@ const TABS = [
   { id: "calendar", label: "🗓️ LỊCH VẠN NIÊN" },
   { id: "tax", label: "🧾 THUẾ TNCN" },
   { id: "business", label: "🏪 KINH DOANH" },
+  { id: "loan", label: "💳 VAY, TRẢ GÓP" },
   { id: "bhxh", label: "🛡️ BHXH" },
 ];
 
@@ -280,6 +281,12 @@ export default function Home() {
   const [businessProductPrice, setBusinessProductPrice] = useState("30000");
   const [businessDaysPerMonth, setBusinessDaysPerMonth] = useState("30");
   const [businessCalculated, setBusinessCalculated] = useState(false);
+  const [loanAssetPrice, setLoanAssetPrice] = useState("100000000");
+  const [loanDownPayment, setLoanDownPayment] = useState("30000000");
+  const [loanMonths, setLoanMonths] = useState("12");
+  const [loanAnnualRate, setLoanAnnualRate] = useState("12");
+  const [loanSavingsRate, setLoanSavingsRate] = useState("4.5");
+  const [loanCalculated, setLoanCalculated] = useState(false);
   const [bhxhMode, setBhxhMode] = useState("contribution");
   const [bhxhSalary, setBhxhSalary] = useState("10000000");
   const [bhxhLastSix, setBhxhLastSix] = useState("10000000");
@@ -554,7 +561,7 @@ export default function Home() {
 
       {tab === "stock" && (
         <section className="panel">
-          <h2>Phân tích cổ phiếu Việt Nam — ĐẢO CHIỀU → Điểm mua &amp; DCA</h2>
+          <h2>🇻🇳 Phân tích cổ phiếu Việt Nam — ĐẢO CHIỀU → Điểm mua &amp; DCA</h2>
           <div className="form-grid stock-grid">
             <label>Mã cổ phiếu
               <input value={symbol} onChange={(e) => setSymbol(e.target.value.toUpperCase())} placeholder="FPT" maxLength={12} />
@@ -972,6 +979,66 @@ export default function Home() {
         </section>;
       })()}
 
+      {tab === "loan" && (() => {
+        const money = (value) => new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 0 }).format(Math.max(0, Math.round(Number(value) || 0))) + " ₫";
+        const price = Math.max(0, Number(loanAssetPrice) || 0);
+        const down = Math.min(price, Math.max(0, Number(loanDownPayment) || 0));
+        const principal = Math.max(0, price - down);
+        const months = Math.max(1, Math.min(360, Math.floor(Number(loanMonths) || 1)));
+        const monthlyRate = Math.max(0, Number(loanAnnualRate) || 0) / 100 / 12;
+        const monthlySavingsRate = Math.max(0, Number(loanSavingsRate) || 0) / 100 / 12;
+        const principalPayment = principal / months;
+        const schedule = Array.from({ length: months }, (_, index) => {
+          const opening = Math.max(0, principal - principalPayment * index);
+          const interest = opening * monthlyRate;
+          const principalPart = index === months - 1 ? principal - principalPayment * index : principalPayment;
+          return { month: index + 1, opening, principal: principalPart, interest, payment: principalPart + interest, closing: Math.max(0, opening - principalPart), savingsInterest: opening * monthlySavingsRate };
+        });
+        const totalInterest = schedule.reduce((sum, row) => sum + row.interest, 0);
+        const totalInstallments = schedule.reduce((sum, row) => sum + row.payment, 0);
+        const totalOutlay = down + totalInstallments;
+        const savingsInterest = schedule.reduce((sum, row) => sum + row.savingsInterest, 0);
+        const netFinancingCost = totalInterest - savingsInterest;
+        const difference = totalOutlay - price;
+        return <section className="panel loan-panel">
+          <h2>💳 Vay, trả góp — So sánh trả thẳng, lãi vay và lãi tiết kiệm</h2>
+          <p className="muted">Mô phỏng khoản vay trả gốc đều, lãi tính trên dư nợ đầu mỗi tháng. Bạn có thể thay đổi giá tài sản, tiền trả trước, kỳ hạn và hai mức lãi suất để so sánh.</p>
+          <div className="form-grid">
+            <label>Giá trị tài sản (VND)
+              <input type="number" min="0" step="1000000" value={loanAssetPrice} onChange={(e) => { setLoanAssetPrice(e.target.value); setLoanCalculated(false); }} />
+            </label>
+            <label>Trả trước (VND)
+              <input type="number" min="0" step="1000000" value={loanDownPayment} onChange={(e) => { setLoanDownPayment(e.target.value); setLoanCalculated(false); }} />
+            </label>
+            <label>Thời hạn trả góp (tháng)
+              <input type="number" min="1" max="360" step="1" value={loanMonths} onChange={(e) => { setLoanMonths(e.target.value); setLoanCalculated(false); }} />
+            </label>
+            <label>Lãi suất vay (%/năm, dư nợ giảm dần)
+              <input type="number" min="0" max="100" step="0.1" value={loanAnnualRate} onChange={(e) => { setLoanAnnualRate(e.target.value); setLoanCalculated(false); }} />
+            </label>
+            <label>Lãi suất tiết kiệm tham chiếu (%/năm)
+              <input type="number" min="0" max="100" step="0.1" value={loanSavingsRate} onChange={(e) => { setLoanSavingsRate(e.target.value); setLoanCalculated(false); }} />
+            </label>
+          </div>
+          <button type="button" className="primary business-calculate-button" onClick={() => setLoanCalculated(true)}>🧮 TÍNH VÀ SO SÁNH PHƯƠNG ÁN</button>
+          {!loanCalculated ? <p className="muted tax-hint">Ví dụ mặc định: tài sản 100 triệu, trả trước 30 triệu, vay 70 triệu trong 12 tháng, lãi vay 12%/năm. Nhấn nút để xem kết quả và lịch trả nợ.</p> : price <= 0 || down > price || Number(loanMonths) < 1 ? <div className="alert error">Vui lòng nhập giá trị tài sản hợp lệ, tiền trả trước không vượt giá tài sản và kỳ hạn ít nhất 1 tháng.</div> : <>
+            <div className="business-results">
+              <article className="business-result"><span>Phương án A — Trả thẳng</span><strong>{money(price)}</strong><small>Thanh toán toàn bộ ngay</small></article>
+              <article className="business-result"><span>Số tiền vay</span><strong>{money(principal)}</strong><small>Giá tài sản trừ tiền trả trước</small></article>
+              <article className="business-result"><span>Tiền gốc trả mỗi tháng</span><strong>{money(principal / months)}</strong><small>Gốc chia đều trong {months} tháng</small></article>
+              <article className="business-result"><span>Lãi vay tổng cộng</span><strong>{money(totalInterest)}</strong><small>Lãi tính trên dư nợ giảm dần</small></article>
+              <article className="business-result highlight"><span>Phương án B — Tổng tiền bỏ ra</span><strong>{money(totalOutlay)}</strong><small>Trả trước + tổng gốc và lãi</small></article>
+              <article className="business-result"><span>Chênh lệch so với trả thẳng</span><strong>{money(difference)}</strong><small>Chưa tính giá trị thời gian của tiền</small></article>
+              <article className="business-result"><span>Lãi tiết kiệm ước tính trên tiền vay còn giữ lại</span><strong>{money(savingsInterest)}</strong><small>Ước tính theo dư nợ đầu mỗi tháng và lãi tiết kiệm nhập tay</small></article>
+              <article className="business-result highlight"><span>Chi phí lãi ròng sau lãi tiết kiệm</span><strong>{money(netFinancingCost)}</strong><small>Lãi vay trừ lãi tiết kiệm ước tính; có thể âm nếu lãi tiết kiệm cao hơn</small></article>
+            </div>
+            <div className="business-formula"><strong>So sánh nhanh</strong><p>Phương án A: trả {money(price)} ngay. Phương án B: trả trước {money(down)} và trả góp tổng {money(totalInstallments)} trong {months} tháng.</p><p>Với lãi suất vay {Number(loanAnnualRate) || 0}%/năm và lãi suất tiết kiệm tham chiếu {Number(loanSavingsRate) || 0}%/năm, chi phí lãi ròng ước tính là {money(netFinancingCost)}.</p><p className="muted">Lãi tiết kiệm chỉ là mô phỏng nếu phần tiền chưa trả được giữ trong tài khoản tiết kiệm và sinh lãi theo mức nhập. Chưa xét thuế, phí hồ sơ, bảo hiểm khoản vay, phí trả nợ trước hạn, biến động lãi suất hoặc lịch tính lãi riêng của bên cho vay.</p></div>
+            <h3>Lịch trả góp từng tháng</h3>
+            <div style={{ overflowX: "auto" }}><table style={{ width: "100%", borderCollapse: "collapse", minWidth: "620px" }}><thead><tr>{["Tháng", "Dư nợ đầu kỳ", "Gốc trả", "Lãi trả", "Tổng thanh toán", "Dư nợ cuối kỳ"].map((label) => <th key={label} style={{ textAlign: "right", padding: "10px 8px", borderBottom: "1px solid #dbe3ef", whiteSpace: "nowrap" }}>{label}</th>)}</tr></thead><tbody>{schedule.map((row) => <tr key={row.month}>{[row.month, money(row.opening), money(row.principal), money(row.interest), money(row.payment), money(row.closing)].map((value, index) => <td key={index} style={{ textAlign: "right", padding: "9px 8px", borderBottom: "1px solid #edf1f7", whiteSpace: "nowrap" }}>{value}</td>)}</tr>)}</tbody><tfoot><tr><th colSpan={3} style={{ textAlign: "right", padding: "10px 8px" }}>Tổng lãi</th><th style={{ textAlign: "right", padding: "10px 8px" }}>{money(totalInterest)}</th><th style={{ textAlign: "right", padding: "10px 8px" }}>{money(totalInstallments)}</th><th /></tr></tfoot></table></div>
+          </>}
+        </section>;
+      })()}
+
       {tab === "bhxh" && (() => {
         const money = (value) => new Intl.NumberFormat("vi-VN", { maximumFractionDigits: 0 }).format(Math.max(0, Math.round(Number(value) || 0))) + " ₫";
         const salary = Math.max(0, Number(bhxhSalary) || 0);
@@ -1173,30 +1240,10 @@ export default function Home() {
       <DonationSupport />
       <ShareApp />
 
-      <section
-        className="financial-disclaimer"
-        aria-label="Cảnh báo rủi ro"
-        style={{
-          margin: "24px 0 18px",
-          padding: "18px 22px",
-          border: "1px solid #f3d28a",
-          borderLeft: "5px solid #d97706",
-          borderRadius: "14px",
-          background: "linear-gradient(135deg, #fffaf0 0%, #fff7e6 100%)",
-          color: "#713f12",
-          lineHeight: 1.7,
-          boxShadow: "0 4px 14px rgba(120, 83, 20, 0.06)",
-        }}
-      >
-        <p className="financial-disclaimer-title" style={{ margin: "0 0 8px", fontWeight: 800, color: "#9a5b08" }}>
-          ⚠️ CẢNH BÁO RỦI RO
-        </p>
-        <p style={{ margin: "0 0 10px" }}>
-          Công cụ chỉ mang tính tham khảo. Mọi quyết định giao dịch cuối cùng đều thuộc về bạn. Hãy tự nghiên cứu kỹ và chỉ hành động khi bạn đã hiểu rõ rủi ro.
-        </p>
-        <p className="financial-disclaimer-tags" style={{ margin: 0, fontWeight: 700, color: "#80622d", overflowWrap: "anywhere" }}>
-          #TDFinanceTools&nbsp; #TaiChinh&nbsp; #DauTu&nbsp; #KinhDoanh
-        </p>
+      <section className="financial-disclaimer" aria-label="Cảnh báo rủi ro">
+        <p className="financial-disclaimer-title">⚠️ CẢNH BÁO RỦI RO</p>
+        <p>Công cụ chỉ mang tính tham khảo. Mọi quyết định giao dịch cuối cùng đều thuộc về bạn. Hãy tự nghiên cứu kỹ và chỉ hành động khi bạn đã hiểu rõ rủi ro.</p>
+        <p className="financial-disclaimer-tags">#TDFinanceTools&nbsp; #TaiChinh&nbsp; #DauTu&nbsp; #KinhDoanh</p>
       </section>
 
       <footer className="footer">
