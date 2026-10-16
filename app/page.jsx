@@ -1010,7 +1010,7 @@ export default function Home() {
                 <option value="unemployment">Trợ cấp thất nghiệp (ước tính)</option>
               </select>
             </label>
-            <label>{bhxhMode === "lump" ? "Mức bình quân tiền lương tháng đóng BHXH đã điều chỉnh (VND)" : bhxhMode === "maternity" || bhxhMode === "unemployment" ? "Mức bình quân tiền lương đóng BHXH/BHTN 6 tháng gần nhất (VND)" : "Mức thu nhập/lương làm căn cứ đóng (VND/tháng)"}
+            <label>{bhxhMode === "lump" ? "Mức bình quân tiền lương tháng đóng BHXH đã điều chỉnh (VND)" : bhxhMode === "unemployment" ? "Mức bình quân tiền lương tháng đóng BHTN của 6 tháng gần nhất (VND)" : bhxhMode === "maternity" ? "Mức bình quân tiền lương tháng đóng BHXH của 6 tháng gần nhất (VND)" : "Mức thu nhập/lương làm căn cứ đóng (VND/tháng)"}
               <input type="number" min="0" step="100000" value={bhxhMode === "lump" ? bhxhLastSix : bhxhMode === "maternity" || bhxhMode === "unemployment" ? bhxhLastSix : bhxhSalary} onChange={(e) => { if (bhxhMode === "lump" || bhxhMode === "maternity" || bhxhMode === "unemployment") setBhxhLastSix(e.target.value); else setBhxhSalary(e.target.value); setBhxhCalculated(false); }} />
             </label>
           </div>
@@ -1025,7 +1025,7 @@ export default function Home() {
                 </select>
               </label>
             </div>
-            <p className="muted">Nhập tổng thời gian đã đóng BHTN chưa dùng để hưởng trợ cấp. Thời gian được duyệt còn phụ thuộc điều kiện hồ sơ và thời điểm chấm dứt hợp đồng.</p>
+            <p className="muted">Nhập mức bình quân lương đóng BHTN của 6 tháng gần nhất, tổng số năm và tháng lẻ đã đóng BHTN chưa dùng để hưởng trợ cấp, rồi nhấn “TÍNH BHXH”. Công thức tham khảo từ năm 2026: hưởng 60% mức bình quân lương đóng BHTN, tối đa 5 lần lương tối thiểu vùng; thời gian hưởng phụ thuộc tổng thời gian đóng và điều kiện hồ sơ.</p>
           </>}
           {bhxhMode === "lump" && <>
             <h3>Thời gian đã đóng BHXH</h3>
@@ -1034,7 +1034,7 @@ export default function Home() {
               <label>Số năm đóng từ năm 2014 trở đi<input type="number" min="0" step="1" value={bhxhAfter2014} onChange={(e) => { setBhxhAfter2014(e.target.value); setBhxhCalculated(false); }} /></label>
               <label>Số tháng lẻ còn lại (0–11)<input type="number" min="0" max="11" step="1" value={bhxhMonthsExtra} onChange={(e) => { setBhxhMonthsExtra(e.target.value); setBhxhCalculated(false); }} /></label>
             </div>
-            <p className="muted">Tháng lẻ được quy đổi theo cách tính tham khảo: 1–6 tháng = 0,5 năm; 7–11 tháng = 1 năm. Hãy xác nhận thời gian được cơ quan BHXH ghi nhận.</p>
+            <p className="muted">Nhập mức bình quân tiền lương tháng đóng BHXH, số năm đóng trước năm 2014, số năm đóng từ năm 2014 trở đi và số tháng lẻ còn lại. Tháng lẻ được quy đổi theo cách tính tham khảo: 1–6 tháng = 0,5 năm; 7–11 tháng = 1 năm. Nhấn “TÍNH BHXH” để xem mức hưởng ước tính; hãy xác nhận thời gian được cơ quan BHXH ghi nhận và điều kiện được rút.</p>
           </>}
           <button type="button" className="primary bhxh-calculate-button" onClick={() => setBhxhCalculated(true)}>🧮 TÍNH BHXH</button>
           {!bhxhCalculated ? <p className="muted tax-hint">Chọn chế độ, nhập mức lương/thu nhập và nhấn “TÍNH BHXH”.</p> : <>
@@ -1051,12 +1051,12 @@ export default function Home() {
               </div>
             </>}
             {bhxhMode === "voluntary" && <div className="tax-results"><article className="tax-result highlight"><span>Mức đóng BHXH tự nguyện tham khảo (22%)</span><strong>{money(salary * 0.22)} / tháng</strong></article><article className="tax-result"><span>Ước tính 12 tháng</span><strong>{money(salary * 0.22 * 12)}</strong></article><p className="muted">Chưa trừ mức hỗ trợ đóng của Nhà nước; mức căn cứ và hỗ trợ tùy trường hợp, cần kiểm tra quy định hiện hành.</p></div>}
-            {bhxhMode === "lump" && <div className="tax-results"><article className="tax-result"><span>Tổng thời gian quy đổi</span><strong>{totalYears.toLocaleString("vi-VN")} năm</strong></article><article className="tax-result highlight"><span>Mức hưởng BHXH một lần ước tính</span><strong>{money(oneTimeBenefit)}</strong><small>Công thức tham khảo: (1,5 × năm trước 2014 + 2 × năm từ 2014) × mức bình quân tháng</small></article></div>}
+            {bhxhMode === "lump" && <div className="tax-results"><article className="tax-result"><span>Tổng thời gian quy đổi</span><strong>{totalYears.toLocaleString("vi-VN")} năm</strong></article><article className="tax-result highlight"><span>Mức hưởng BHXH một lần ước tính theo số năm đóng</span><strong>{money(oneTimeBenefit)}</strong><small>Công thức tham khảo: (1,5 × năm trước 2014 + 2 × năm từ 2014) × mức bình quân tháng</small></article></div>}
             {bhxhMode === "maternity" && <div className="tax-results"><article className="tax-result highlight"><span>Tiền thai sản ước tính cho 6 tháng nghỉ sinh</span><strong>{money(maternityBenefit)}</strong><small>Tạm tính bằng bình quân tiền lương đóng BHXH của 6 tháng × 6; chưa gồm trợ cấp một lần khi sinh con và các điều kiện hồ sơ.</small></article></div>}
             {bhxhMode === "unemployment" && <div className="tax-results">
               <article className="tax-result"><span>Tổng thời gian đóng BHTN đã nhập</span><strong>{Math.floor(unemploymentMonthsPaid / 12)} năm {unemploymentMonthsPaid % 12} tháng</strong></article>
-              <article className="tax-result"><span>Thời gian hưởng ước tính</span><strong>{unemploymentDuration} tháng</strong><small>{unemploymentMonthsPaid < 12 ? "Chưa đủ 12 tháng đóng theo cách tính tham khảo; cần kiểm tra điều kiện đặc thù." : "Tạm tính 3 tháng nếu đóng 12–36 tháng; mỗi đủ thêm 12 tháng sau 36 tháng được thêm 1 tháng, tối đa 12 tháng."}</small></article>
-              <article className="tax-result"><span>Trợ cấp thất nghiệp mỗi tháng</span><strong>{money(unemploymentBenefit)}</strong><small>60% bình quân lương BHTN 6 tháng gần nhất, tối đa 5 lần lương tối thiểu vùng đã chọn ({money(unemploymentMonthlyCap)}).</small></article>
+              <article className="tax-result"><span>Số tháng được hưởng theo công thức tham khảo</span><strong>{unemploymentDuration} tháng</strong><small>{unemploymentMonthsPaid < 12 ? "Chưa đủ 12 tháng đóng theo cách tính tham khảo; cần kiểm tra điều kiện đặc thù." : "Tạm tính 3 tháng nếu đóng 12–36 tháng; mỗi đủ thêm 12 tháng sau 36 tháng được thêm 1 tháng, tối đa 12 tháng."}</small></article>
+              <article className="tax-result"><span>Trợ cấp thất nghiệp ước tính mỗi tháng</span><strong>{money(unemploymentBenefit)}</strong><small>60% bình quân lương BHTN 6 tháng gần nhất, tối đa 5 lần lương tối thiểu vùng đã chọn ({money(unemploymentMonthlyCap)}).</small></article>
               <article className="tax-result highlight"><span>Tổng trợ cấp thất nghiệp ước tính</span><strong>{money(unemploymentTotal)}</strong><small>Chưa trừ/điều chỉnh theo quyết định thực tế của cơ quan giải quyết.</small></article>
             </div>}
             <div className="business-formula"><strong>Lưu ý quan trọng</strong><p>Các kết quả chỉ để tham khảo, không phải quyết định hưởng chế độ. Mức đóng, mức bình quân tiền lương, mức trần, điều kiện và công thức có thể phụ thuộc loại hình tham gia, thời gian đóng, thời điểm phát sinh quyền lợi và quy định pháp luật đang có hiệu lực.</p><p className="muted">Riêng BHXH một lần: công thức trên chỉ là ước tính theo dữ liệu nhập, không xác nhận bạn đủ điều kiện rút BHXH một lần. Hãy kiểm tra với cơ quan BHXH trước khi ra quyết định.</p></div>
